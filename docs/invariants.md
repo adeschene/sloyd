@@ -2032,7 +2032,11 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     - **Keeping one: D in the Tape tool, no new tool.** D (in `App`'s ONE keydown effect, inv 27, `e.key` only) keeps the held anchor →
       hover as a dimension. Axis: the locked one; else the one world axis the points differ on by more than `DIM_EPS`; two or three with
       none locked refuses (`Lock an axis (X, Y or Z) to keep a dimension.`: guessing would print a number the user did not mean); a
-      zero value refuses (`The two points are level along X.`). Every refusal is decided before `edit()` (inv 4). `addDimension` is ONE
+      zero value refuses (`The two points are level along X.`); a typed distance pending in the box refuses (`Clear the typed distance to
+      keep a dimension.`: the preview shows the offset point, and D would keep the raw hover). The ONE action is `keepTapeDimension()`
+      (`store.ts`), called by App's branch and by TapeReadout's focused-box twin, which takes D only while the box is EMPTY (inv 27's
+      forced pattern, as X/Y/Z and Escape: the window listener never sees a key typed in the box; inv 28: the hint offers D there). Every
+      refusal is decided before `edit()` (inv 4). `addDimension` is ONE
       `edit()`, ONE undo entry, and touches neither the held points nor the selection (none of inv 24's three reasons applies), so a chain
       of dimensions can be kept from one anchor. The refusal is `tapeNotice`, which is SELF-INVALIDATING: `{ text, anchor, hover, axis }`
       captures the held objects it was raised against and `shownTapeNotice` (the ONE reader) returns its text only while `tapeAnchor` and
@@ -2043,9 +2047,16 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       exception to inv 33). No v32→v33 step; the bump exists for the refusal gate (a 32 build would rebuild the document without
       `dimensions` and write the project back without them).
     - **Edits.** Group and Ungroup re-key every `part` with the same `rekey` in the SAME edit (`rekeyDimensions`, in `edit()`'s document, as
-      `rekeyViews` does for `hidden`). Deleting a part leaves its dimensions detached and listed: safe ONLY because `nextId` never reuses an
-      id (`id_<Date.now()>_<counter>`), so a new part never resolves a detached anchor (a test pins it); the store does not hunt dimensions
-      down on every path that removes a part. Undoing the delete re-attaches. Duplicate, Copy in a row, Link, Stretch, Align, Joinery and
+      `rekeyViews` does for `hidden`). Deleting a part leaves its dimensions detached and listed: safe ONLY because of TWO guarantees,
+      each pinned by tests, so a different part never lands at a detached anchor's path; the store does not hunt dimensions down on every
+      path that removes a part. (1) `nextId` never reuses an id (`id_<Date.now()>_<counter>`), so a NEW part never resolves one. (2) Ungroup
+      KEEPS a child's id when it is free, and a shared definition's part ids are the same in every copy, so a flat path CAN come back (a
+      deleted root `b1`, then Ungroup of a copy holding `b1`; or two copies, the first's ungrouped `b1` deleted, then the second ungrouped):
+      `ungroupItem`'s `fresh()` therefore treats as TAKEN every id whose landing path, under any placement of the container, a dimension
+      anchor names or lies under (a lifted assembly's parts), and re-mints it (Amended (build) ruling 13). An anchor on the moving child
+      names its CURRENT path, never a landing path, so it re-keys onto the child as before. Every other path that puts an item in a new
+      container mints its own id (Group's assembly, Duplicate, Copy in a row, Copy mirrored, Add stretcher) or keeps every path (Make
+      Unique). Undoing the delete re-attaches. Duplicate, Copy in a row, Link, Stretch, Align, Joinery and
       Repair never copy, move or re-anchor a dimension (a joint that moves a `local` anchor's feature leaves it at its stored station).
       Generate's output starts with `dimensions: []` (the design schema is untouched); Refine's result starts with none (fu 619).
     - **Nothing disappears silently.** A detached dimension is drawn nowhere in the viewport; the list row reads `(part deleted)` (an end

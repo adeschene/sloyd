@@ -4,7 +4,7 @@ import { CURRENT_VERSION, createDocument, migrateDocument, isGuideLine, isGuideP
 const load = (guides: unknown[]) => migrateDocument({ ...createDocument('T'), version: 30, guides }).guides;
 
 describe('schema 31: construction lines (construction-lines spec §2)', () => {
-  it('is version 32 and refuses 33', () => {
+  it('is the current version (33) and refuses a newer file', () => {
     expect(CURRENT_VERSION).toBe(33);
     expect(() => migrateDocument({ ...createDocument('T'), version: 34 })).toThrow(/newer version of Sloyd/);
   });

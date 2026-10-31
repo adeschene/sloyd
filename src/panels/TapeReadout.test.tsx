@@ -257,13 +257,33 @@ describe('TapeReadout placed dimensions (spec §3)', () => {
     mount(1);
     expect(hintText()).toMatch(/ · D keeps it as a dimension$/);
   });
-  it('no suffix for an oblique pair with no lock; a lock brings it back', () => {
+  it('no suffix for an oblique pair with no lock', () => {
     mount(2);
     expect(hintText()).not.toMatch(/D keeps it/);
+  });
+  // A fixed pair (not one derived from the tested condition): the origin corner and the corner across the bottom face,
+  // differing on X and Z only. A lock on X or Z decides; a lock on Y, which they are level along, does not.
+  it('a fixed oblique pair: X and Z locks bring the suffix, a Y lock does not', () => {
+    useStore.getState().replaceDocument(createDocument('T'));
+    useStore.getState().addBoard();
+    const pts = boardSnapPoints(worldParts(useStore.getState().doc)[0]!);
+    const at = (x: number, y: number, z: number) => pts.find((p) => p.at[0] === x && p.at[1] === y && p.at[2] === z)!;
+    const b = worldParts(useStore.getState().doc)[0]!;
+    const far = at(b.length, 0, b.width);
+    expect(far).toBeDefined();
+    act(() => {
+      useStore.getState().setTool('tape');
+      useStore.getState().setTapeAnchor(at(0, 0, 0));
+      useStore.getState().setTapeHover(far);
+    });
+    render(<TapeReadout />);
+    expect(hintText()).not.toMatch(/D keeps it/);
     act(() => { useStore.getState().setTapeAxis('x'); });
-    // Only when the pair differs on x.
-    const { tapeAnchor: a, tapeHover: b } = useStore.getState();
-    expect(hintText()!.includes('D keeps it')).toBe(Math.abs(a!.at[0] - b!.at[0]) > 1e-9);
+    expect(hintText()).toMatch(/ · D keeps it as a dimension$/);
+    act(() => { useStore.getState().setTapeAxis('y'); });
+    expect(hintText()).not.toMatch(/D keeps it/);
+    act(() => { useStore.getState().setTapeAxis('z'); });
+    expect(hintText()).toMatch(/ · D keeps it as a dimension$/);
   });
   it('no suffix once a distance is typed', async () => {
     mount(1);

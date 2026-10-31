@@ -243,11 +243,13 @@ it**. Each dimension is an interval `[lo, hi]` along the view direction, so:
   `rekey` in the same edit, so the dimension follows its part. (Hidden ids are re-keyed in view state; dimensions are
   document data, so they are re-keyed in the document passed to `edit()`.) A test pins a dimension surviving a
   Group/Ungroup round trip with the same value.
-- **Deleting a part** leaves its dimensions **detached**, and they stay listed. **(call)** This is safe ONLY because an
-  id is never reused: `ids.ts` `nextId` mints `id_<Date.now()>_<counter>`, so no later part takes a deleted part's
-  path, and a detached dimension cannot silently re-attach to an unrelated part and print its number. (`views[].hidden`
-  is a weaker precedent: a wrong hide is cosmetic, a wrong dimension is not; the guarantee here is the id minting,
-  and a test pins that a new part never resolves a detached anchor.) The store does not hunt
+- **Deleting a part** leaves its dimensions **detached**, and they stay listed. **(call)** This is safe ONLY because no
+  later part takes a deleted part's path, so a detached dimension cannot silently re-attach to an unrelated part and
+  print its number. TWO guarantees make that so (Amended (build) ruling 13): `ids.ts` `nextId` never reuses an id
+  (`id_<Date.now()>_<counter>`), so a NEW part never resolves a detached anchor; and Ungroup, which KEEPS a child's
+  id when it is free (a shared definition's part ids are the same in every copy), never lands a path an anchor names:
+  `ungroupItem`'s `fresh()` re-mints such an id. (`views[].hidden` is a weaker precedent: a wrong hide is cosmetic, a
+  wrong dimension is not; tests pin both guarantees.) The store does not hunt
   dimensions down on every path that removes a part: there are many (delete, definition edits that remove a part from
   every copy, Ungroup's dissolve), and missing one would leave a silent dangling reference anyway. A detached row is
   visible and deletable, and undoing the delete re-attaches it, because the id comes back.
@@ -437,6 +439,25 @@ Recorded by the build (2026-10-31). **Not yet approved by the user.**
     pinned). `PlansSheet`'s section keeps the piece trio's scale through the same call. Cost if wrong: a signature tweak.
 12. **Task 1 (controller clarification): §2.3 has no id-shape rule beyond `takeId`.** `validateDimensions` drops a non-string id;
     any string id goes through `takeId` (a `/` is re-minted, inv 33), and the build's literals are clean. No further rule added.
+13. **Final review (controller ruling, Critical): Ungroup never lands a path a dimension anchor names.** §7 rested "deleting a
+    part detaches" on `nextId` alone, but `ungroupItem`'s `fresh()` keeps a definition child's own id unless the parent holds it,
+    and a shared definition's part ids are the same in every copy, so a flat path could come back: Drawer 1 and Drawer 2 copies of
+    one definition holding `b1`; Ungroup Drawer 1, keep X from a guide point to `b1`'s corner (30), delete `b1` (`(part deleted)`),
+    Ungroup Drawer 2 at +50: its part landed at root `b1` and the dimension read 80 with no note (likewise a deleted root `b1`,
+    then Ungroup of any copy holding `b1`). `fresh()` now treats as TAKEN every id whose landing path, under any placement of the
+    container, an anchor's `part` names or lies under (a lifted assembly's parts), and re-mints it. An anchor naming the moving
+    child's own CURRENT path is never a landing path, so it re-keys onto the child as before (spec call 4 kept). Every other path
+    putting an item in a new container mints its own id (Group's assembly, Duplicate, Copy in a row, Copy mirrored, Add
+    stretcher) or keeps every path (Make Unique). Cost if wrong: an ungrouped part gets a fresh id where it could have kept one.
+14. **Final review (controller ruling): D refuses while a typed distance is pending.** With `3` typed and the box blurred, the
+    preview shows the offset point but D kept the raw hover, and the hint (rightly) omitted D. D now refuses with `Clear the typed
+    distance to keep a dimension.` (through `setTapeNotice`). §3's "D keeps the hover point as it is" (fu 620) reads: D is
+    refused while anything is typed. Cost if wrong: one more key press (clear the box) before D.
+15. **Final review (controller ruling): D in the focused, EMPTY readout box keeps the dimension (inv 28).** After Shift+Enter (text
+    cleared, focus kept) or a backspace to empty, the hint said `· D keeps it as a dimension` but D typed `d`: App's listener
+    returns on `isTextEntry`. The box's `onKeyDown` takes D when its text is empty, the forced pattern X/Y/Z and Escape use there,
+    and both handlers call ONE action, `keepTapeDimension()` (`store.ts`). With text in the box D is a character. Cost if wrong:
+    a `d` cannot begin a typed length (no length begins with `d`).
 
 **Spec text these rulings change** (the approved text above is kept; read it with these):
 - §2.2: "every point `boardSnapPoints` produces" reads "every pickable point (`snapPointsFor`)" (5); `anchorFor`'s return is
@@ -450,14 +471,17 @@ Recorded by the build (2026-10-31). **Not yet approved by the user.**
   the label side is chosen by room, never clipped (3, which replaced an earlier "before `from`" flip rule limited to the view's
   outer edge); a dimension reaching past its view's drawing is not drawn and is noted (4); packing's gap is `DIM_LABEL_PAD` (1).
   Anti-goal 1 ("nothing silently disappears") is kept by the notes in each case.
+- §3: D refuses while a distance is typed (14); D in the focused, empty box keeps the dimension, through one action shared with
+  App's key (15).
+- §7: "safe ONLY because an id is never reused" names both guarantees, `nextId` and Ungroup's `fresh()` (13).
 - §9 / inv 65: "never resolve an anchor anywhere but `resolveAnchor`" still holds. `placedDimLines`, `dimensionValue` and
   `rekeyDimensions` all go through it; `anchorFor` is the one converter the other way. Nothing in the build calls `toWorld` for an
   anchor elsewhere.
 
-**Deferred** (record-only, fu 615–627; the SDD ledger's minors are listed whole in fu 627): a D pressed with typed text pending; the
-orphaned doc comment above `HEAD_NOT_WIDER`; a stale `hoveredDimension` after undo; the duplicate `worldParts` walk in
+**Deferred** (record-only, fu 615–628; the SDD ledger's minors are listed whole in fu 627; the final-review wave fixed a D pressed
+with typed text pending (14) and the orphaned doc comment above `HEAD_NOT_WIDER`): a stale `hoveredDimension` after undo; the duplicate `worldParts` walk in
 `PlacedDims`; key tags that do not avoid placed rows (fu 625). Task 6's other three minors (the `FIT_PASSES` exit, the overhang
 wording, two labels meeting at their limits) were fixed in its round 3.
 
-**Owed to the user.** The dimension colour (`--dim-placed`, `#e0793a`) by eye; the twelve checks of
-`docs/browser-verification-placed-dimensions.md` (unrun); the Plans sheet print by eye; approval of rulings 1–12 above.
+**Owed to the user.** The dimension colour (`--dim-placed`, `#e0793a`) by eye; the 21 checks of
+`docs/browser-verification-placed-dimensions.md` (unrun); the Plans sheet print by eye; approval of rulings 1–15 above.

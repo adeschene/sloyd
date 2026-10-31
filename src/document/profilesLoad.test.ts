@@ -179,7 +179,7 @@ describe('loading schema 18 (profile runs spec §3.2, chunk a1)', () => {
     const raw = { ...v17([part({ profiles: [{ ...p1({ id: 'a' }), run: { loop: true } }, { ...p1({ id: 'b' }), run: two }] })]), version: 18 };
     expect(board0(load(raw)).profiles).toEqual([{ ...p1({ id: 'a' }), run: { loop: true } }, { ...p1({ id: 'b' }), run: two }]);
   });
-  it('a v33 file is refused by the version gate', () => {
+  it('a file newer than the current version is refused by the version gate', () => {
     expect(() => load({ ...v17([part({})]), version: 34 })).toThrow(/newer version/);
   });
 });

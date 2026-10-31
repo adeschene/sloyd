@@ -79,5 +79,5 @@ describe('loading schema 20 (hardware spec §2.3)', () => {
       expect(board0(migrateDocument(raw({ hardwareTypes: [type({ packSize: 0 })], boards: [part({ hardware: [{ type: 'h1', count: 1 }] })] }))).hardware).toEqual([]));
   });
 
-  it('refuses a v33 document', () => expect(() => migrateDocument(raw({ version: 34 }))).toThrow(DocumentError));
+  it('refuses a document newer than the current version', () => expect(() => migrateDocument(raw({ version: 34 }))).toThrow(DocumentError));
 });

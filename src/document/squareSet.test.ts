@@ -21,7 +21,7 @@ const at = (version: number, extra: Record<string, unknown> = {}) =>
 const part = (doc: SloydDocument) => doc.boards[0] as Board;
 
 describe('schema 25: square-set leans and the across slope (square-set legs spec §3.4)', () => {
-  it('CURRENT_VERSION is 28; a v24 file loads unchanged at 28 with no new keys', () => {
+  it('a v24 file loads unchanged at the current version with no new keys', () => {
     expect(CURRENT_VERSION).toBe(33);
     const lean = { x: 0.1, z: 0.25, face: 'thickness' };
     const doc = at(24, { angleCuts: [MITER], lean });

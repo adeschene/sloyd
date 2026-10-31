@@ -1768,3 +1768,24 @@ describe('Generate and Refine start with no saved views (saved views spec §7)',
     expect(out.doc.views).toEqual([]);
   });
 });
+
+// Placed dimensions (spec §2, final review): a project made from a design starts with none, Refine included — the
+// original's anchors name its own part paths, which the refined design does not keep.
+describe('Generate and Refine start with no placed dimensions (placed-dimensions spec §2)', () => {
+  it('a generated project has dimensions: []', async () => {
+    const { client } = fakeClient([GOOD]);
+    expect((await run(client)).doc.dimensions).toEqual([]);
+  });
+  it('a refined project has dimensions: [] even when the original had one', async () => {
+    const bp = (name: string, y: number) => ({ name, role: '', miters: [], bevels: [], chamfers: [], holes: [], bands: [], tapers: [], material: 'pine', at: { x: 0, y, z: 0 }, size: { x: 10, y: 1, z: 10 } });
+    const base = designToDocument({ name: 'Box', parts: [bp('Base', 0), bp('Top', 1)], assemblies: [] }).doc;
+    const part = base.boards[0]!.id;
+    const doc = { ...base, dimensions: [{ id: 'dim-keep', a: { at: [-10, 0, 0] as [number, number, number] }, b: { part, frac: { length: 0, width: 0, thickness: 0 } as const }, axis: 'x' as const }] };
+    const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error('refused');
+    const { client } = fakeClient([r.design]);
+    const out = await runRefine(client, doc, { instruction: 'x', width: null, depth: null, height: null, detail: 'simple' as const }, new AbortController().signal, () => {});
+    if ('refused' in out) throw new Error('refused');
+    expect(doc.dimensions).toHaveLength(1);
+    expect(out.doc.dimensions).toEqual([]);
+  });
+});

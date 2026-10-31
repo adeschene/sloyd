@@ -1,5 +1,5 @@
-import { useStore, shownTapeNotice } from './store';
-import { createDocument, snapPointsFor } from '../document/document';
+import { useStore, shownTapeNotice, keepTapeDimension, TAPE_TYPED_PENDING } from './store';
+import { createBoard, createDocument, snapPointsFor } from '../document/document';
 import { worldParts } from '../document/tree';
 import { dimensionValue } from '../document/placedDims';
 import type { SnapPoint } from '../document/document';
@@ -197,5 +197,107 @@ describe('hoveredDimension', () => {
     st().setHoveredDimension('d');
     st().replaceDocument(createDocument('B'));
     expect(st().hoveredDimension).toBeNull();
+  });
+});
+
+/**
+ * Ungroup never lands a path a dimension anchor names (final review, Critical; spec Amended (build) ruling 13). A
+ * shared definition's part ids are the same in every copy, so without the rule a detached anchor re-attaches,
+ * silently, to a DIFFERENT part that lands at its old path.
+ */
+describe('a detached dimension stays detached through Ungroup', () => {
+  const corner = { length: 0, width: 0, thickness: 0 } as const;
+  const guideAt = (x: number): SnapPoint => ({ kind: 'corner', at: [x, 0, 0], owner: { type: 'guide', id: 'g' } } as SnapPoint);
+  const cornerOf = (path: string): SnapPoint => {
+    const b = parts().find((p) => p.id === path)!;
+    return snapPointsFor(b).find((p) => p.at.every((v, i) => Math.abs(v - b.position[i]!) < 1e-9))!;
+  };
+  const drawerDoc = (rootPart: boolean) => {
+    const doc = createDocument('Drawers');
+    const part = createBoard({ id: 'b1', name: 'Side', position: [20, 0, 0] });
+    return {
+      ...doc,
+      boards: rootPart ? [createBoard({ id: 'b1', name: 'Loose', position: [20, 0, 0] })] : [],
+      definitions: [{ id: 'def', boards: [part], instances: [], hardware: [] }],
+      instances: [
+        ...(rootPart ? [] : [{ id: 'd1', name: 'Drawer 1', definition: 'def', position: [0, 0, 0] as [number, number, number], rotation: 0 as const }]),
+        { id: 'd2', name: 'Drawer 2', definition: 'def', position: [50, 0, 0] as [number, number, number], rotation: 0 as const },
+      ],
+    };
+  };
+  const value = () => dimensionValue(parts(), st().doc.dimensions[0]!);
+  const ungroup = (id: string) => { st().selectBoard(id); st().ungroupSelected(); };
+
+  it('two copies of one definition: delete the first ungrouped part, ungroup the second — still detached', () => {
+    st().replaceDocument(drawerDoc(false));
+    ungroup('d1');
+    expect(parts().map((p) => p.id)).toContain('b1');
+    expect(st().addDimension(guideAt(-10), cornerOf('b1'), 'x')).toBe(true);
+    expect(value()).toBeCloseTo(30, 9);
+    st().deleteBoard('b1');
+    expect(value()).toBeNull();
+    ungroup('d2');
+    expect(value()).toBeNull(); // the list says `(part deleted)`, never 80
+    const landed = parts().filter((p) => p.name === 'Side');
+    expect(landed).toHaveLength(1);
+    expect(landed[0]!.id).not.toBe('b1'); // re-minted
+    expect(st().doc.dimensions[0]!.b).toEqual({ part: 'b1', frac: corner });
+  });
+
+  it('a deleted root part, then Ungroup of a copy holding the same id — still detached', () => {
+    st().replaceDocument(drawerDoc(true));
+    expect(st().addDimension(guideAt(-10), cornerOf('b1'), 'x')).toBe(true);
+    expect(value()).toBeCloseTo(30, 9);
+    st().deleteBoard('b1');
+    expect(value()).toBeNull();
+    ungroup('d2');
+    expect(value()).toBeNull();
+    const landed = parts().filter((p) => p.name === 'Side');
+    expect(landed).toHaveLength(1);
+    expect(landed[0]!.id).not.toBe('b1');
+  });
+
+  it('positive control: an anchor on the part being ungrouped follows it, same value', () => {
+    st().replaceDocument(drawerDoc(false));
+    expect(st().addDimension(guideAt(-10), cornerOf('d1/b1'), 'x')).toBe(true);
+    expect(value()).toBeCloseTo(30, 9);
+    ungroup('d1');
+    expect(st().doc.dimensions[0]!.b).toEqual({ part: 'b1', frac: corner }); // re-keyed onto the child, which kept its id
+    expect(value()).toBeCloseTo(30, 9);
+  });
+});
+
+describe('keepTapeDimension (the ONE D action, spec §3)', () => {
+  const arm = () => {
+    const [a, b] = pair();
+    st().setTool('tape');
+    st().setTapeAnchor(a);
+    st().setTapeHover(b);
+  };
+
+  it('keeps one dimension for an aligned pair', () => {
+    arm();
+    expect(keepTapeDimension()).toBe(true);
+    expect(st().doc.dimensions).toHaveLength(1);
+  });
+
+  it('refuses while a typed distance is pending: the notice, no dimension, no undo entry', () => {
+    arm();
+    st().setTapeTyped('3');
+    const past = st().past.length;
+    expect(keepTapeDimension()).toBe(true);
+    expect(st().doc.dimensions).toHaveLength(0);
+    expect(st().past.length).toBe(past);
+    expect(shownTapeNotice(st())).toBe(TAPE_TYPED_PENDING);
+    expect(TAPE_TYPED_PENDING).toBe('Clear the typed distance to keep a dimension.');
+  });
+
+  it('does not apply (false, so the key falls through) with no hover or another tool', () => {
+    arm();
+    st().setTapeHover(null);
+    expect(keepTapeDimension()).toBe(false);
+    st().setTool('select');
+    expect(keepTapeDimension()).toBe(false);
+    expect(st().doc.dimensions).toHaveLength(0);
   });
 });

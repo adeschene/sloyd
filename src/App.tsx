@@ -43,8 +43,7 @@ import { worldParts } from './document/tree';
 import { joineryRefusal as decideJoineryRefusal } from './generate/joints/tapers';
 import { FEATURE_CHECK_FAILED, featureAllowed } from './generate/joints/featureZones';
 import { storage } from './storage';
-import { useStore } from './store/store';
-import { dimensionAxis } from './document/placedDims';
+import { keepTapeDimension, useStore } from './store/store';
 
 export default function App() {
   const undo = useStore((s) => s.undo);
@@ -732,16 +731,10 @@ export default function App() {
       // D keeps the Tape measurement as a placed dimension (placed-dimensions spec §3). The modifier test is part of
       // the condition, so Ctrl+D (the browser's bookmark) falls through untouched, as does D with no anchor and hover.
       // The key is NOT in the type-anywhere capture (`canBeginLength`: digits, '.' and '-' only).
-      if (e.key === 'd' || e.key === 'D') {
-        const { tool, tapeAnchor, tapeHover, tapeAxis, addDimension, setTapeNotice } = useStore.getState();
-        if (!e.ctrlKey && !e.metaKey && !e.altKey && tool === 'tape' && tapeAnchor && tapeHover) {
-          e.preventDefault();
-          const d = dimensionAxis(tapeAnchor.at, tapeHover.at, tapeAxis);
-          if ('refusal' in d) setTapeNotice(d.refusal);
-          else if (addDimension(tapeAnchor, tapeHover, d.axis)) setTapeNotice(null);
-          // A false here is a refusal the store decided itself (exploded, mid-gesture): the tool is unavailable there, no notice.
-          return;
-        }
+      // `keepTapeDimension` is the ONE action, shared with TapeReadout's focused-box twin.
+      if ((e.key === 'd' || e.key === 'D') && !e.ctrlKey && !e.metaKey && !e.altKey && keepTapeDimension()) {
+        e.preventDefault();
+        return;
       }
 
       // R toggles X-ray (x-ray spec §5), the same shape as M and T. Modifier

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { parseLength, formatLength } from '../units/length';
 import { heldRoot, isAnyLine, newLineOf, offsetPoint, sameNewLine, tapeAxisFromKey, tapeLineFor, towardFor } from '../document/document';
-import { useStore, shownTapeNotice } from '../store/store';
+import { keepTapeDimension, useStore, shownTapeNotice } from '../store/store';
 import { dimensionAxis } from '../document/placedDims';
 
 /**
@@ -239,6 +239,13 @@ export function TapeReadout() {
             if (axisKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
               e.preventDefault();
               useStore.getState().setTapeAxis(axisKey);
+              return;
+            }
+            // D is the third key forced here (placed-dimensions spec §3, inv 28): with the box focused and EMPTY (after
+            // Shift+Enter, or backspaced) the hint offers D, and App's listener never sees it. The SAME action App calls,
+            // so the two cannot disagree; with text in the box D is a character like any other.
+            if ((e.key === 'd' || e.key === 'D') && !e.ctrlKey && !e.metaKey && !e.altKey && text.trim() === '' && keepTapeDimension()) {
+              e.preventDefault();
               return;
             }
             // Escape needs its own handler HERE, because App's window listener

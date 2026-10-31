@@ -2475,6 +2475,42 @@ describe('App D keeps a dimension (placed-dimensions spec §3)', () => {
     expect(dims()[0]!.axis).toBe('xyz'[k]);
   });
 
+  // inv 28 (final review): the hint offers D with the box focused and empty, so D there must keep, not type `d`.
+  it('D in the focused EMPTY box keeps one dimension and the box stays empty', async () => {
+    const user = await setup(1);
+    const box = screen.getByLabelText('Guide distance from anchor') as HTMLInputElement;
+    await user.click(box);
+    expect(document.activeElement).toBe(box);
+    expect(document.querySelector('.tape-readout-hint')!.textContent).toMatch(/D keeps it as a dimension$/);
+    await user.keyboard('d');
+    expect(dims()).toHaveLength(1);
+    expect(box.value).toBe('');
+    expect(useStore.getState().tapeTyped).toBe('');
+  });
+
+  it('D in the focused box with a distance typed is a character, not a dimension', async () => {
+    const user = await setup(1);
+    const box = screen.getByLabelText('Guide distance from anchor') as HTMLInputElement;
+    await user.click(box);
+    await user.keyboard('3d');
+    expect(dims()).toHaveLength(0);
+    expect(box.value).toBe('3d');
+  });
+
+  it('D with a typed distance pending and the box blurred refuses with the clear-it sentence', async () => {
+    const user = await setup(1);
+    const box = screen.getByLabelText('Guide distance from anchor') as HTMLInputElement;
+    await user.click(box);
+    await user.keyboard('3');
+    act(() => { box.blur(); });
+    const past = useStore.getState().past.length;
+    await user.keyboard('d');
+    expect(dims()).toHaveLength(0);
+    expect(useStore.getState().past.length).toBe(past);
+    expect(box.value).toBe('3');
+    expect(screen.getByTestId('tape-readout-error')).toHaveTextContent('Clear the typed distance to keep a dimension.');
+  });
+
   it('Ctrl+D keeps nothing', async () => {
     const user = await setup(1);
     await user.keyboard('{Control>}d{/Control}');

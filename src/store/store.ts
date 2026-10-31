@@ -39,9 +39,39 @@ import { pruneMaterials, upsertMaterials, materialUses } from '../document/mater
 import { MAX_ROW } from '../document/row';
 import { clickTarget } from './assemblyPick';
 import { rekeyViews } from '../document/views';
-import { anchorFor, dimensionValue, rekeyDimensions, DIM_EPS } from '../document/placedDims';
+import { anchorFor, dimensionAxis, dimensionValue, rekeyDimensions, DIM_EPS } from '../document/placedDims';
 
 const HISTORY_LIMIT = 50;
+
+/** The ONE reader of `tapeNotice`: its text while the held points it was raised against are unchanged (`===`), else null. */
+export function shownTapeNotice(s: Pick<StoreState, 'tapeNotice' | 'tapeAnchor' | 'tapeHover' | 'tapeAxis'>): string | null {
+  const n = s.tapeNotice;
+  return n && s.tapeAnchor === n.anchor && s.tapeHover === n.hover && s.tapeAxis === n.axis ? n.text : null;
+}
+
+/** D's refusal while a typed distance is pending (placed-dimensions spec §3, final review): the preview shows the offset
+ *  point, so keeping the raw hover would keep a point the user is not looking at. */
+export const TAPE_TYPED_PENDING = 'Clear the typed distance to keep a dimension.';
+
+/**
+ * The D key (placed-dimensions spec §3): keep the Tape measurement as a placed dimension, or say why not through
+ * `setTapeNotice`. The ONE action behind both D handlers — App's window keydown and TapeReadout's focused-input twin
+ * (inv 27, 28: the window listener never sees a key typed in the box). False when D does not apply (not the Tape, no
+ * anchor or no hover), so the caller lets the key fall through; true when it was handled, kept or refused.
+ */
+export function keepTapeDimension(): boolean {
+  const { tool, tapeAnchor, tapeHover, tapeAxis, tapeTyped, addDimension, setTapeNotice } = useStore.getState();
+  if (tool !== 'tape' || !tapeAnchor || !tapeHover) return false;
+  if (tapeTyped.trim() !== '') {
+    setTapeNotice(TAPE_TYPED_PENDING);
+    return true;
+  }
+  const d = dimensionAxis(tapeAnchor.at, tapeHover.at, tapeAxis);
+  if ('refusal' in d) setTapeNotice(d.refusal);
+  else if (addDimension(tapeAnchor, tapeHover, d.axis)) setTapeNotice(null);
+  // A false from addDimension is a refusal the store decided itself (exploded, mid-gesture): the tool is unavailable there, no notice.
+  return true;
+}
 
 /** A row's tilt is within the loader's ONE bound (`withinTiltBound`); a square row always is. */
 const tiltWithin = (r: Pick<HoleRow, 'tiltAlong' | 'tiltAcross'>): boolean => withinTiltBound(r.tiltAlong ?? 0, r.tiltAcross ?? 0);
@@ -64,12 +94,6 @@ function storedHead(r: HoleRow): HoleRow {
   return out;
 }
 /** addHoleRows' and updateHoleRow's head refusals (counterbores spec §3.2), verbatim; the loader drops the same rows. */
-/** The ONE reader of `tapeNotice`: its text while the held points it was raised against are unchanged (`===`), else null. */
-export function shownTapeNotice(s: Pick<StoreState, 'tapeNotice' | 'tapeAnchor' | 'tapeHover' | 'tapeAxis'>): string | null {
-  const n = s.tapeNotice;
-  return n && s.tapeAnchor === n.anchor && s.tapeHover === n.hover && s.tapeAxis === n.axis ? n.text : null;
-}
-
 export const HEAD_NOT_WIDER = 'The counterbore or countersink must be wider than the hole.';
 export const HEAD_TOO_DEEP = 'The counterbore or countersink must be shallower than the hole.';
 export const HEAD_ON_TILT = "A tilted hole can't take a counterbore or countersink yet.";
@@ -1940,6 +1964,7 @@ export const useStore = create<StoreState>((set, get) => {
 
     ungroupSelected: () => {
       let doc = get().doc;
+      const { dimensions } = doc;
       const children: string[] = [];
       const kept: string[] = [];
       const steps: Array<{ rekey: Rekey; lift: Lift }> = [];
@@ -1948,14 +1973,16 @@ export const useStore = create<StoreState>((set, get) => {
         // A selected plain part stays selected where it was; the ungrouped
         // children follow it.
         if (!r) { kept.push(id); continue; }
-        doc = r.doc;
+        // The next step judges landing paths against the anchors where THIS step put them (ungroupItem's taken rule,
+        // inv 65); the entry itself re-keys the original anchors once, through the composed re-key below.
+        doc = rekeyDimensions(r.doc, r.rekey);
         children.push(...r.children);
         steps.push(r);
       }
       if (steps.length === 0) return;
       // Each step's paths are the previous step's output: compose in order.
       const through = (p: string) => steps.reduce<string[]>((ps, st) => ps.flatMap((q) => st.lift(q) ?? [st.rekey(q)]), [p]);
-      editRekeyed((p) => steps.reduce((q, st) => st.rekey(q), p), () => doc, () => [...kept, ...children], through);
+      editRekeyed((p) => steps.reduce((q, st) => st.rekey(q), p), () => ({ ...doc, dimensions }), () => [...kept, ...children], through);
     },
 
     turnAssembly: (path, rotation) => {

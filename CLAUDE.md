@@ -76,7 +76,7 @@ user's own key, stored only in `sloyd.llm.v1`; the CSP's
 
 **The plain-JSON document is the source of truth; the Three.js scene is derived from it
 and is never authoritative.** A document is
-`{ version, name, units, stock, guides, boards, instances, definitions, shapes, materials, bandTypes, hardwareTypes, hardware, views }`.
+`{ version, name, units, stock, guides, boards, instances, definitions, shapes, materials, bandTypes, hardwareTypes, hardware, views, dimensions }`.
 Dragging computes a number, writes it to the document, and the scene re-renders — never
 the reverse. That keeps undo, save/load and export simple. **A board's `position` is its
 min corner**, not its centre (inv 2).
@@ -167,7 +167,7 @@ or its role changes. Where a file's own doc comment is the stated single source 
 | viewport | `viewport/` — NO unit tests by design except the pure helpers and perf/watertight guards |
 | panels | `panels/` — one section per feature, each over a pure refusal module |
 
-**Test-only modules** (never import a test module — it re-registers its suite): the `*Fixtures.ts`, `meshCases.ts` and `holesSquareCases.ts` files; the list is in `docs/module-map.md`.
+**Test-only modules** (never import a test module — it re-registers its suite): the `*Fixtures.ts` and `*Fixture.ts` files (`shakerTableFixture.ts`, `stoolFixture.ts`), `meshCases.ts` and `holesSquareCases.ts`; the list is in `docs/module-map.md`.
 
 ### Per-file rules not covered by an invariant
 
@@ -547,18 +547,20 @@ changes.
 65. **A placed dimension stores WHAT it measures, never its value: two anchors and a world axis (schema 33).** `placedDims.ts` holds the ONE resolver
     (`resolveAnchor`) and the ONE snap-point→anchor converter (`anchorFor`, `null` for a board point whose part is gone, never a silent `{at}`). A lattice
     anchor is a FRACTION of the part's own size and follows a resize; any other part anchor is LOCAL to its part; a guide-owned or offset anchor is a world
-    point. A `part` is a hint resolved at read time, never repaired on load (inv 33); Group and Ungroup re-key it in the same edit. D in the Tape tool keeps
-    one (ONE undo entry, the held points untouched; `tapeNotice` self-invalidates via `shownTapeNotice`). A detached dimension is drawn nowhere, and the
+    point. A `part` is a hint resolved at read time, never repaired on load (inv 33); Group and Ungroup re-key it in the same edit. A detached anchor
+    never re-attaches to another part, by TWO guarantees: `nextId` never reuses an id, and Ungroup's `fresh()` never lands a path an anchor names (it
+    re-mints). D in the Tape tool keeps one through ONE action, `keepTapeDimension` (App's key and the readout's empty-box twin; refused while a distance
+    is typed); ONE undo entry, the held points untouched; `tapeNotice` self-invalidates via `shownTapeNotice`. A detached dimension is drawn nowhere, and the
     list and the sheet SAY so; the sheet draws at most 6 rows per band and NOTES what it does not draw (no room; past the drawing). A dimension-free
     project's sheet and drawings are byte for byte as before (its file gains only `dimensions: []`). **PROHIBITION: never store a dimension's value, and
-    never resolve an anchor anywhere but `resolveAnchor`.** Full text: `docs/invariants.md`. Follow-ups 615–627.
+    never resolve an anchor anywhere but `resolveAnchor`.** Full text: `docs/invariants.md`. Follow-ups 615–628.
 
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 10964 tests (2 todo) across 319 files (timing guards can fail under load; re-run quiet before claiming a regression)
+npm test           # Vitest, currently 10979 tests (2 todo) across 319 files (timing guards can fail under load; re-run quiet before claiming a regression)
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -567,14 +569,14 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–614). Every entry's LAST `**Status:**` line governs
+**`docs/follow-ups.md` is authoritative** (1–628). Every entry's LAST `**Status:**` line governs
 (numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number; some entries close mid-line, so read an entry whole.
 
 - **Feature-sized (need a spec):** 253 and 265 (schema bumps); 257, 258, 268, 270, 271, 274; 404–407 (hardware); angle cuts
   275, 276 (joint kinds only), 280; holes 330, 331, 334; curves 363 (authoring; design checks reading curved bodies),
   364–366; banding 399, 400; splayed legs 449, 450; stretchers 475–478, 480, 481; round tenons 457, 458, 460; square-set legs 470, 471; box joints 485 (and both dovetail kinds), 486–490, 492;
-  dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight); stretch 545–549 (ask first); glue-ups 556 (stored, schema 33 now; ask first), 557–563; cam-and-bolt 568 (chunk 2 deployed; residue 603–606), 598, 599, 600 (ask first), 605 (ask first), 609, 613, 614 (ask first); counterbores 569 (a head on a tilted row; ask first), 571 (AI authoring a head; ask first), 572 (a head at a through bore's exit), 573 (plugs as parts); construction lines 583, 584, 586–588 (ask first); selectable guides 592 (schema; ask first), 593, 594 (ask first).
+  dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight); stretch 545–549 (ask first); glue-ups 556 (stored, schema 34 now; ask first), 557–563; cam-and-bolt 568 (chunk 2 deployed; residue 603–606), 598, 599, 600 (ask first), 605 (ask first), 609, 613, 614 (ask first); counterbores 569 (a head on a tilted row; ask first), 571 (AI authoring a head; ask first), 572 (a head at a through bore's exit), 573 (plugs as parts); construction lines 583, 584, 586–588 (ask first); selectable guides 592 (schema; ask first), 593, 594 (ask first).
 - **Owed to the user, not code:** by eye — counterbores (listed in its spec's *Amended (build)* block), 142, 272 (a phone),
   384(2), 393, 394 (`docs/rounds.md`); 465(2)–(4) (round tenons); 106 (touch/pen); 153 (a browser at quota); a real print — 357
   (Brave, metric margin), 402(2); paid runs 172, 177. 336's grain seam waits for a texture/shader session. By eye, per round (each `docs/browser-verification-*.md`, or `docs/rounds.md` for Saved views): X-ray, Stretch, Saved views, Selectable guides (Save image, A–D), Cam-and-bolt (the window, a Plans print), **Placed dimensions: the whole check list is UNRUN, and the colour by eye** (`docs/browser-verification-placed-dimensions.md`).
@@ -582,7 +584,7 @@ This list is the triage's open set — when an entry's status changes, change it
 - **Open by decision:** 585 (guide points stay delete-and-replace, fu 130), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
   when a real project needs it), 417 (ask first), 431 (left as is 2026-10-23; do not re-open unasked). Record-only: 401, 403, 409, 413 (ask first), 414, 418, 420–428, 429 (ask first), 433 (ask first), 434, 435.
-- **Open, per round:** the triage by round (splayed legs through cam-and-bolt, and placed dimensions 615–627: 615–624 ask first) moved to `docs/follow-ups.md`, "Open, per round (index)", 2026-10-31.
+- **Open, per round:** the triage by round (splayed legs through cam-and-bolt, and placed dimensions 615–628: 615–624 ask first) moved to `docs/follow-ups.md`, "Open, per round (index)", 2026-10-31.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).
