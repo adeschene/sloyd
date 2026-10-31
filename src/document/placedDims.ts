@@ -1,6 +1,8 @@
 import { toWorld, fromWorld } from './snapPoints';
 import type { SnapPoint } from './snapPoints';
 import { geometryBoard } from './profiles';
+import { axisDimensions } from './geometry';
+import { worldParts } from './tree';
 import type { Rekey } from './treeOps';
 import type { Board, DimAnchor, DimFrac, Dimension, PlacedDimension, SloydDocument, TapeAxis } from './types';
 import type { Vec3 } from './lineModel';
@@ -91,6 +93,38 @@ export function dimensionAxis(a: Vec3, b: Vec3, locked: TapeAxis | null): { axis
  * Re-key every `part` anchor with `rekey` (spec §2.3: the paths are hints, kept in step with Group/Ungroup/rename).
  * `{ at }` anchors are untouched. Returns the SAME document when nothing changes (inv 4: no work for nothing).
  */
+/**
+ * A dimension with BOTH ends on one part turns with that part (spec Amended (build) ruling 17, the user's request
+ * 2026-10-31): the axis is still stored as a WORLD axis (no schema change), and when an edit changes which of the part's
+ * own dimensions runs along each world axis (a turn, a posture change, an assembly turned), the stored axis is remapped
+ * through the part's old frame and its new one, so a shelf's length dimension stays its length. A dimension between two
+ * parts, or with a world (`at`) end, keeps its axis: no one part owns it. `worldParts` composes every turn on the path, and
+ * `axisDimensions` reads `axisFrame` (inv 44), so a lean, a mirror or a move changes nothing here. Run by the store's ONE
+ * `edit()` on every edit, so no path that turns a part can miss it; returns `after` itself when nothing changed (the no-op
+ * test in `edit()` relies on it). A part missing from either document (deleted, or re-keyed by Group/Ungroup, which turn
+ * nothing) is skipped.
+ */
+export function turnDimensions(before: SloydDocument, after: SloydDocument): SloydDocument {
+  const own = after.dimensions.filter((d) => 'part' in d.a && 'part' in d.b && d.a.part === d.b.part);
+  if (own.length === 0 || before.boards === after.boards && before.instances === after.instances
+    && before.definitions === after.definitions && before.shapes === after.shapes) return after;
+  const was = new Map(worldParts(before).map((b) => [b.id, b]));
+  const now = new Map(worldParts(after).map((b) => [b.id, b]));
+  let changed = false;
+  const dimensions = after.dimensions.map((d) => {
+    if (!own.includes(d) || !('part' in d.a)) return d;
+    const b0 = was.get(d.a.part);
+    const b1 = now.get(d.a.part);
+    if (!b0 || !b1) return d;
+    const dim = axisDimensions(b0)[AXES.indexOf(d.axis)]!;
+    const axis = AXES[axisDimensions(b1).indexOf(dim)]!;
+    if (axis === d.axis) return d;
+    changed = true;
+    return { ...d, axis };
+  });
+  return changed ? { ...after, dimensions } : after;
+}
+
 export function rekeyDimensions(doc: SloydDocument, rekey: Rekey): SloydDocument {
   let changed = false;
   const anchor = (a: DimAnchor): DimAnchor => {

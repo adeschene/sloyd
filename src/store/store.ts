@@ -39,7 +39,7 @@ import { pruneMaterials, upsertMaterials, materialUses } from '../document/mater
 import { MAX_ROW } from '../document/row';
 import { clickTarget } from './assemblyPick';
 import { rekeyViews } from '../document/views';
-import { anchorFor, dimensionAxis, dimensionValue, rekeyDimensions, DIM_EPS } from '../document/placedDims';
+import { anchorFor, dimensionAxis, dimensionValue, rekeyDimensions, turnDimensions, DIM_EPS } from '../document/placedDims';
 
 const HISTORY_LIMIT = 50;
 
@@ -899,7 +899,8 @@ export const useStore = create<StoreState>((set, get) => {
     const { doc, past, future, gesturing, gestureSnapshotTaken } = get();
     // Custom materials (spec §2.3): a document carries exactly what it uses. The SAME object when nothing
     // was unused, so the no-op test below still sees an unchanged document.
-    const next = pruneMaterials(fn(doc));
+    // A same-part dimension turns with its part (placed-dimensions ruling 17): one place, so no turning path can miss it.
+    const next = pruneMaterials(turnDimensions(doc, fn(doc)));
 
     // The function changed nothing (the SAME document object): an undo entry
     // for it would undo to nothing (invariant 4), so push none and take no

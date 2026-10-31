@@ -322,3 +322,66 @@ describe('keepTapeDimension (the ONE D action, spec §3)', () => {
     expect(shownTapeNotice(st())).toBeNull();
   });
 });
+
+describe('a same-part dimension turns with its part (ruling 17)', () => {
+  /** An X dimension along the first part's length (a default board lies flat, length along X at turn 0). */
+  function alongLength() {
+    const [a, b] = pair();
+    st().addDimension(a, b, 'x');
+    return st().doc.dimensions[0]!;
+  }
+
+  it('a Turn of 90° moves the axis X → Z and keeps the value; undo restores X', () => {
+    const d = alongLength();
+    const id = parts()[0]!.id;
+    const len = dimensionValue(parts(), d)!;
+    expect(len).toBeGreaterThan(1);
+    st().updateBoard(id, { rotation: 90 });
+    const t = st().doc.dimensions[0]!;
+    expect(t.axis).toBe('z');
+    expect(dimensionValue(parts(), t)).toBeCloseTo(len, 9);
+    st().undo();
+    expect(st().doc.dimensions[0]!.axis).toBe('x');
+  });
+
+  it('a posture change carries the axis with the dimension it measured (thickness: Y flat → Z on-edge)', () => {
+    const b = parts()[0]!;
+    const pts = snapPointsFor(b);
+    const lo = pts.find((p) => p.at[1] === b.position[1])!;
+    const hi = pts.find((p) => p.at[0] === lo.at[0] && p.at[2] === lo.at[2] && p.at[1] > lo.at[1] + 1e-9)!;
+    st().addDimension(lo, hi, 'y');
+    const v = dimensionValue(parts(), st().doc.dimensions[0]!)!;
+    expect(v).toBeGreaterThan(0);
+    st().updateBoard(b.id, { posture: 'on-edge' });
+    const t = st().doc.dimensions[0]!;
+    expect(t.axis).toBe('z');
+    expect(dimensionValue(parts(), t)).toBeCloseTo(v, 9);
+  });
+
+  it('turning the assembly a part sits in turns its dimension too', () => {
+    alongLength();
+    st().selectBoard(parts()[0]!.id);
+    st().groupSelected();
+    const path = st().doc.instances[0]!.id;
+    st().turnAssembly(path, 90);
+    expect(st().doc.dimensions[0]!.axis).toBe('z');
+  });
+
+  it('a dimension between two parts keeps its world axis', () => {
+    st().addBoard();
+    const [p0, p1] = parts();
+    const a = snapPointsFor(p0!)[0]!;
+    const b = snapPointsFor(p1!).find((q) => q.at[1] === a.at[1] && q.at[2] === a.at[2] && q.at[0] !== a.at[0]);
+    if (!b) return expect.fail('fixture: no X-aligned corner on the second part');
+    st().addDimension(a, b, 'x');
+    st().updateBoard(p0!.id, { rotation: 90 });
+    expect(st().doc.dimensions[0]!.axis).toBe('x');
+  });
+
+  it('an edit that turns nothing keeps the same dimensions array (no rewrite)', () => {
+    alongLength();
+    const dims = st().doc.dimensions;
+    st().updateBoard(parts()[0]!.id, { position: [3, 0, 0] });
+    expect(st().doc.dimensions).toBe(dims);
+  });
+});
