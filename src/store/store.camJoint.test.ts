@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useStore } from './store';
-import { createBoard, migrateDocument, worldParts } from '../document/document';
+import { createBoard, migrateDocument, sameSnapPoint, snapPointsFor, worldParts } from '../document/document';
 import type { Dovetail, SloydDocument } from '../document/document';
 import { camJointPlan } from '../document/camJoint';
 import { linkByRole } from '../document/roleLinks';
@@ -147,6 +147,88 @@ describe('addCamJoint', () => {
     const before = s().doc;
     expect(s().addCamJoint([shelf, left], null, null)).toBe(CAM_JOINT_BARE_FACE(displayNames(before).get(right)!));
     expect(s().doc).toBe(before);
+    expect(s().past.length).toBe(0);
+  });
+});
+
+describe('addCamJoint: Fit again (fu 602)', () => {
+  /** The carcass joined, then the shelf moved up by `dy` in the stored document (no undo entry, no held points). */
+  const joinedThenMoved = (dy: number) => {
+    expect(s().addCamJoint(ids(), null, null)).not.toBeNull();
+    const doc = s().doc;
+    const moved: SloydDocument = {
+      ...doc,
+      boards: doc.boards.map((b) => (b.id === c.shelf ? { ...b, position: [b.position[0]!, b.position[1]! + dy, b.position[2]!] as typeof b.position } : b)),
+    };
+    useStore.setState({ doc: moved, past: [], future: [] });
+    return moved;
+  };
+
+  it('a fit is one undo entry; undo restores the exact old rows (ids and order)', () => {
+    joinedThenMoved(2);
+    const oldLeft = part(c.left).holes;
+    const oldShelf = part(c.shelf).holes;
+    const r = s().addCamJoint(ids(), null, null);
+    expect(r).not.toBeNull();
+    expect(typeof r).not.toBe('string');
+    expect(s().past.length).toBe(1);
+    const nowLeft = part(c.left).holes;
+    expect(nowLeft).not.toEqual(oldLeft); // the bores really moved
+    expect(nowLeft.map((h) => h.id)).toEqual(oldLeft.map((h) => h.id)); // in place: same ids, same order
+    s().undo();
+    expect(part(c.left).holes).toEqual(oldLeft);
+    expect(part(c.shelf).holes).toEqual(oldShelf);
+  });
+
+  it('a tape anchor on a moved bore\'s rim drops', () => {
+    joinedThenMoved(2);
+    const left = part(c.left);
+    const afterPlan = camJointPlan(s().doc, ids(), null, null);
+    expect(typeof afterPlan).not.toBe('string');
+    const movedRows = new Set((afterPlan as Exclude<typeof afterPlan, string>).moved);
+    expect(movedRows.size).toBeGreaterThan(0);
+    // A snap point on this side that the fit will swallow: found as one present now and absent after.
+    const pointsOf = (b: typeof left) => snapPointsFor(b);
+    const before = pointsOf(left);
+    useStore.setState({ tapeAnchor: null });
+    expect(s().addCamJoint(ids(), null, null)).not.toBeNull();
+    const after = pointsOf(part(c.left));
+    const gone = before.filter((p) => !after.some((q) => sameSnapPoint(p, q)));
+    expect(gone.length).toBeGreaterThan(0);
+    s().undo();
+    s().setTapeAnchor(gone[0]!);
+    expect(s().tapeAnchor).not.toBeNull();
+    expect(s().addCamJoint(ids(), null, null)).not.toBeNull();
+    expect(s().tapeAnchor).toBeNull();
+  });
+
+  it('a fit into a dovetailed side\'s zone refuses with the zone sentence, nothing written', () => {
+    const tails: Dovetail = { id: 'dt', dim: 'length', end: 'min', role: 'tails', count: 1, slope: 8, pin: 0.25, depth: 0.75 };
+    // Joined where the zone is clear, then dovetailed, then the shelf moved down so the MOVE carries a bore into the zone.
+    expect(s().addCamJoint(ids(), null, null)).not.toBeNull();
+    const doc = s().doc;
+    setup(migrateDocument({
+      ...doc,
+      boards: doc.boards.map((b) => (b.id === c.left ? { ...b, dovetails: [tails] } : b.id === c.shelf ? { ...b, position: [b.position[0]!, 0.2, b.position[2]!] } : b)),
+    }));
+    const before = s().doc;
+    const plan = camJointPlan(before, ids(), null, null);
+    expect(typeof plan).not.toBe('string');
+    expect((plan as Exclude<typeof plan, string>).moved.length).toBeGreaterThan(0);
+    expect(s().addCamJoint(ids(), null, null)).toBe(dovetailMoveClear(displayNames(before).get(c.left)!));
+    expect(s().doc).toBe(before);
+    expect(s().past.length).toBe(0);
+  });
+
+  it('exploded and gesturing: a fit does nothing', () => {
+    const moved = joinedThenMoved(2);
+    s().setExplode(0.5);
+    expect(s().addCamJoint(ids(), null, null)).toBeNull();
+    expect(s().doc).toBe(moved);
+    s().setExplode(0);
+    useStore.setState({ gesturing: true });
+    expect(s().addCamJoint(ids(), null, null)).toBeNull();
+    expect(s().doc).toBe(moved);
     expect(s().past.length).toBe(0);
   });
 });

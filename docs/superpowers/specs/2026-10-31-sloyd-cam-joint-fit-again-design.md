@@ -210,3 +210,40 @@ refusal shown.
 
 The exact placement of A's readout; the search's loop shape (any correct one: the bound is small); whether `moved` rows are
 reported in the plan as ids or as a count beyond `moved` (the tests need ids, so the builder may add them).
+
+## Amended (build)
+
+Recorded by the build (Task 5, 2026-10-31), from the SDD ledger (`.superpowers/sdd/2026-10-31-sloyd-cam-joint-fit-again/`).
+**Awaiting the user's approval.** Each ruling changes or settles text above.
+
+**Rulings**
+1. **R1 (§9): `moved` is ids (`string[]`), in B's list order**, not a count. Cost if wrong: a type narrowed to a number and the tests reworked.
+2. **R2 (§3.1, §6): the co-user test raises the right side 1/4".** `boreAlongAxis` is an infinite-line test and a mirror across X keeps y
+   and z, so with the literal numbers the "judge the loose test on B alone" mutation could not fail. Cost if wrong: one test's numbers.
+3. **R3 (§6): the first link test uses the 3"-deep mirrored fixture with one centred fitting.** Cost if wrong: a fixture swapped.
+4. **R4 (§6): the pair-count-3 test also moves the shelf 2"** (3 missing bores against 2 candidates), so it tests "no shifted set", not
+   "nothing to fit". Cost if wrong: one test's setup.
+5. **R5 (§3.2): two stray bores at the same mouth make two equally near sets and refuse as a tie** (`CAM_JOINT_TWO_FITS`). Kept; the
+   sentence reads oddly for duplicates (copy review). Cost if wrong: a word, or a de-duplication rule.
+6. **R6 (§4.1): on a tie the section hides Cam face and Fittings too** (A's pair is reused, so the fields mean nothing), a reading made at
+   review; the refusal stays as the note and the button is disabled. Cost if wrong: the fields shown on a tie.
+7. **R7 (§4.2): the readout memos on the document reference (`s.doc`)**, not a whole-document JSON signature: the same recompute rule (the
+   document is immutable) without serialising on every store update (fu 611). Cost if wrong: a recompute on edits that touch nothing near.
+8. **R8 (§5): the store needed no change** (§5): `newRows` already compares by value, so the zone gate holds for a moved row, and `judgeHeld`
+   already runs after the write; `addCamJoint`'s doc comment says it also fits.
+9. **R9 (§4.2): a fit found but refused for another reason shows no stale signal. For the user's ruling.** `stale` (`panels/CamJoint.tsx`) and
+   `camJointStaleFits` key only on `moved.length > 0` or `CAM_JOINT_TWO_FITS`. When the planner adopts a set and check 8 (`camJointFaulted`) or
+   R18 (`CAM_JOINT_BARE_FACE`) then refuses, A's panel shows no note, and the section shows `Add joint` disabled with the Cam face and Fittings
+   fields though A's pair is reused. Nothing wrong is written. The remedy would be a plan field saying a fit was attempted on refusals. Cost if
+   wrong (left as is): a user who moved a shelf into a fault sees the fault sentence but not that the joint no longer lines up (fu 613).
+10. **R10 (§3.2, §4.2): with one fitting the shifted-set test rules nothing out, and nothing caps the distance. For the user's ruling.** With one
+   missing bore (the default on ends under 150 mm), any loose 5 x 12 mm bore anywhere on B's facing face is adopted, the nearest first. So a Cam
+   lock never bored into its side but facing one stray bore (e.g. from a deleted shelf 15" away) is offered Fit, the stray is moved, and A's
+   readout says "No longer lines up". This partly undoes section 4.2's "never joined must not nag". Cheap remedy if wanted: a distance cap (e.g.
+   half the shelf's width along the end). Cost if wrong (left as is): an unrelated bore moved (visible on the button and undoable) (fu 614).
+
+**Differences from the spec as written**
+- `moved` is ids (R1); a tie hides the section's fields (R6); the readout's memo key is `s.doc` (R7).
+- **Not done, recorded:** strays after an Add-after-move (fu 608), a note on B's own panel (fu 609), a partial match (fu 610), the readout's
+  recompute (fu 611), the build's minors (fu 612), the two open points for the user's ruling (R9, R10; fu 613, 614).
+- **The browser check** (`docs/browser-verification-cam-joint-fit.md`) is written and pending.

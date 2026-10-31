@@ -4,7 +4,14 @@ import { vi } from 'vitest';
 import { useStore } from '../store/store';
 import { createBoard, displayNames, worldParts } from '../document/document';
 import { camJointPlan } from '../document/camJoint';
-import { CAM_JOINT_COUNT, CAM_JOINT_NONE, camJointLine, camJointLinkNote, camJointReused } from '../document/camJointText';
+import {
+  CAM_JOINT_ALREADY, CAM_JOINT_COUNT, CAM_JOINT_NONE, CAM_JOINT_TWO_FITS, camJointLine, camJointLinkNote, camJointReused,
+  camJointStale, camJointStaleNote,
+} from '../document/camJointText';
+import { boreEnds, boreRow } from '../document/legSockets';
+import { mm } from '../document/holes';
+import type { V3 } from '../document/angleCuts';
+import type { Board, SloydDocument } from '../document/types';
 import { carcass } from '../document/camJointFixtures';
 import { Properties } from './Properties';
 
@@ -140,5 +147,96 @@ describe('the Cam-and-bolt joint section (spec §4)', () => {
     expect(heading()).toBeNull();
     expect(screen.queryByRole('button', { name: 'Add joint' })).toBeNull();
     expect(err).toHaveBeenCalled();
+  });
+});
+
+// Fit the joint again (fu 602; fit-again spec §4). Local helpers, as `camJoint.fit.test.ts`' (never import a test module).
+const patched = (doc: SloydDocument, id: string, f: (b: Board) => Board): SloydDocument =>
+  ({ ...doc, boards: doc.boards.map((b) => (b.id === id ? f(b as Board) : b)) });
+const movedY = (doc: SloydDocument, id: string, dy: number) =>
+  patched(doc, id, (b) => ({ ...b, position: [b.position[0], b.position[1] + dy, b.position[2]] }));
+/** The carcass with the shelf joined to the left side through the store; the side's two joint bores' ids. */
+function joined() {
+  const c = carcass();
+  act(() => s().replaceDocument(c.doc));
+  expect(s().addCamJoint([c.shelf, c.left], null, null)).toEqual({ notes: [] });
+  return { ...c, doc: s().doc, ids: part(c.left).holes.map((r) => r.id) };
+}
+const fitButton = () => screen.getByRole('button', { name: 'Fit the joint again' });
+
+describe('Fit the joint again: the section (fit-again spec §4.1)', () => {
+  it('after the shelf moves, the line reads camJointStale and the button reads Fit the joint again; clicking it fits', async () => {
+    const { doc, shelf, left, ids } = joined();
+    open(movedY(doc, shelf, 2), shelf, left);
+    expect(screen.getByText(camJointStale('Shelf', 'Left side'))).toHaveClass('field-note');
+    expect(screen.queryByRole('button', { name: 'Add joint' })).toBeNull();
+    await userEvent.click(fitButton());
+    expect(part(left).holes.map((r) => r.id)).toEqual(ids); // moved in place, ids kept, nothing added
+    expect(camJointPlan(s().doc, [shelf, left], null, null)).toBe(CAM_JOINT_ALREADY('Shelf', 'Left side'));
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('a tie shows Fit the joint again disabled, with CAM_JOINT_TWO_FITS as a field-note', async () => {
+    const { doc: d, shelf, left, ids } = joined();
+    const l = worldParts(d).find((b) => b.id === left)!;
+    const copies = ids.map((id, i) => {
+      const r = l.holes.find((x) => x.id === id)!;
+      const [m, f] = boreEnds(l, r);
+      const mouth: V3 = [m[0], m[1] + 2, m[2]];
+      const u: V3 = [f[0] - m[0], f[1] - m[1], f[2] - m[2]];
+      return { ...boreRow(l, r.face, r.from, mouth, u, mm(5), mm(12)), id: `copy${i}` };
+    });
+    open(movedY(patched(d, left, (b) => ({ ...b, holes: [...b.holes, ...copies] })), shelf, 1), shelf, left);
+    expect(screen.getByText(CAM_JOINT_TWO_FITS('Left side'))).toHaveClass('field-note');
+    expect(screen.getByText(camJointStale('Shelf', 'Left side'))).toBeInTheDocument();
+    expect(fitButton()).toBeDisabled();
+    // A's pair is reused on a tie, as on a fit: no Cam face or Fittings to edit.
+    expect(screen.queryByLabelText('Cam face')).toBeNull();
+    expect(screen.queryByLabelText('Fittings')).toBeNull();
+    const before = s().doc;
+    await userEvent.click(fitButton());
+    expect(s().doc).toBe(before);
+  });
+
+  it('a plain add keeps Add joint and shows no stale line', () => {
+    const c = carcass();
+    open(c.doc, c.shelf, c.left);
+    expect(addButton()).toBeEnabled();
+    expect(screen.queryByText(camJointStale('Shelf', 'Left side'))).toBeNull();
+  });
+});
+
+describe('Fit the joint again: A\'s readout (fit-again spec §4.2)', () => {
+  const note = () => screen.queryByText(camJointStaleNote('Left side'));
+
+  it('with the moved shelf alone selected, camJointStaleNote(Left side) shows', () => {
+    const { doc, shelf } = joined();
+    open(movedY(doc, shelf, 2), shelf);
+    expect(note()).toHaveClass('field-note');
+    expect(heading()).toBeInTheDocument();
+  });
+
+  it('with a fitted shelf it does not', () => {
+    const { doc, shelf } = joined();
+    open(doc, shelf);
+    expect(note()).toBeNull();
+    expect(heading()).toBeNull();
+  });
+
+  it('with a shelf whose Cam lock was never bored it does not', () => {
+    const { doc, shelf, left } = joined();
+    open(patched(doc, left, (b) => ({ ...b, holes: [] })), shelf);
+    expect(note()).toBeNull();
+    expect(heading()).toBeNull();
+  });
+
+  it('follows ANOTHER part: moving the side up to meet the shelf clears the note, the selection unchanged', () => {
+    const { doc, shelf, left } = joined();
+    open(movedY(doc, shelf, 2), shelf);
+    expect(note()).not.toBeNull();
+    const p = part(left).position;
+    act(() => { s().updateBoard(left, { position: [p[0], p[1] + 2, p[2]] }); });
+    expect(s().selectedIds).toEqual([shelf]);
+    expect(note()).toBeNull();
   });
 });

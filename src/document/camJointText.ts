@@ -43,6 +43,9 @@ export const CAM_JOINT_PARTIAL = (part: string) =>
   `${part} has a cam lock at that end that isn't whole — remove it, or fix it in Holes, first.`;
 /** Every planned bore is already there. */
 export const CAM_JOINT_ALREADY = (a: string, b: string) => `${a} and ${b} are already joined here.`;
+/** Fit again (fu 602): two shifted sets of B's loose bores equally near the joint's bolt axes (to 1e-9); the planner never
+ *  guesses between them. */
+export const CAM_JOINT_TWO_FITS = (b: string) => `${b} has two sets of bores this joint could fit — remove the ones you don't want first.`;
 /** A new row with a hole fault (`holeFaults`); `words` are `holeText.ts`' fault words. */
 export const camJointFaulted = (part: string, words: string) => `${part}'s bore would ${words} — move or remove what's in the way first.`;
 /** A link or copy co-user of B whose new bore would open onto a bare face, against no part (ruling R18): a plain (not
@@ -51,10 +54,18 @@ export const CAM_JOINT_BARE_FACE = (part: string) =>
   `${part} would get a bore through its link that opens onto a bare face — make the link a mirrored pair, or unlink ${part}, first.`;
 /** One line per OTHER part that received a row through its link (a Shape's other user, a definition's other placement). */
 export const camJointLinkNote = (part: string) => `${part} got these bores too, through its link.`;
+/** One line per OTHER part whose holes changed only by rows a fit MOVED through its link (fit-again spec §3.3, fu 602). */
+export const camJointMovedNote = (part: string) => `${part}'s bores moved there too, through its link.`;
+/** The two-part section, under the joint line, when the plan is a fit (fit-again spec §4.1): B's bores sit off A's bolts. */
+export const camJointStale = (a: string, b: string) => `${b}'s bores no longer line up with ${a}'s cam locks.`;
+/** A's single-part readout, one per part B whose joint no longer lines up (fit-again spec §4.2). */
+export const camJointStaleNote = (b: string) => `No longer lines up with ${b}'s bores — select both to fit the joint again.`;
 
 /** The panel's heading, fields and button (spec §4). */
 export const CAM_JOINT_HEADING = 'Cam-and-bolt joint';
 export const ADD_CAM_JOINT = 'Add joint';
+/** The button's label when the plan is a fit, moving B's bores (fit-again spec §4.1). */
+export const FIT_CAM_JOINT = 'Fit the joint again';
 export const CAM_FACE_LABEL = 'Cam face';
 export const FITTINGS_LABEL = 'Fittings';
 /** The joint found: A's end (the panel's end word) into B. */
