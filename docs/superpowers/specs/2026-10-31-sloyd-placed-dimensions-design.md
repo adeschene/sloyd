@@ -363,3 +363,14 @@ loading the page only on production. Rollback: `4635ae34` refuses schema 33 proj
 - A typed offset joining D.
 - fu 258 (live viewport dimensions) gets a note: placed dimensions now draw in the viewport; automatic ones still do not.
 - An anchor that knows a coincident feature (a hole on a face centre) from the lattice point.
+
+## Amended (build)
+
+Recorded by the build (2026-10-31). **Not yet approved by the user.**
+
+**Rulings**
+1. **Task 6: packing needs only `DIM_LABEL_PAD` between occupied spans** (§6.2 said "a gap of at least a label's width plus
+   `DIM_LABEL_PAD`"). A label that fits its span is centred inside it, so the span itself already holds the label; only the
+   pad keeps two neighbours' ticks and labels apart. A label that does not fit (`labelWidth + DIM_LABEL_PAD` > the span) is
+   drawn past `hi`, and its row reserves `EXT_GAP + labelWidth` beyond `hi` before the pad. `packPlaced` in
+   `panels/planDims.ts`; the fit loop (`fitPlaced`) re-packs at each new scale until the row counts hold.

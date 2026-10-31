@@ -4,12 +4,14 @@ import { geometryBoard } from './profiles';
 import type { Rekey } from './treeOps';
 import type { Board, DimAnchor, DimFrac, Dimension, PlacedDimension, SloydDocument, TapeAxis } from './types';
 import type { Vec3 } from './lineModel';
+import { FRONT, SIDE, type P2, type View } from './drawing';
+import { formatLengthBare, type Units } from '../units/length';
 
 /**
  * Placed dimensions: anchors, the D decider and re-key (placed-dimensions spec §2, §2.1, §2.2, §3).
  *
- * Imports nothing from `units/` on purpose (the `→ units` edge rule): the only strings here are the two refusals,
- * and neither carries a length.
+ * Imports `units/length` for `placedDimLines`' sheet labels alone (the `→ units` edge rule: a string a person reads off
+ * the page); the two refusals carry no length.
  */
 
 /** "Differ" and "zero" both mean by more than this (spec §3): a leaning part's `toWorld` carries ~1e-15 noise. */
@@ -105,3 +107,36 @@ export function rekeyDimensions(doc: SloydDocument, rekey: Rekey): SloydDocument
   });
   return changed ? { ...doc, dimensions } : doc;
 }
+
+/** One placed dimension on the Plans sheet (spec §6.2), in its view's drawing coordinates (inches): `from < to` along the
+ *  view direction, `a` and `b` the anchors projected into the view, the label built here (inv 19). */
+export interface PlacedLine { id: string; from: number; to: number; a: P2; b: P2; label: string }
+
+const dot = (a: readonly number[], b: readonly number[]) => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!;
+
+/**
+ * The sheet's placed dimensions (spec §6.1): X in Front along the paper, Y in Front up it, Z in Side along it (Side's right
+ * is −Z); Plan gets none. Anchors resolve through `resolveAnchor` only (inv 65); a detached dimension is counted, never
+ * listed. Labels are `formatLengthBare` (inv 52: bare mm in metric), measured later by the panel layer (inv 19).
+ */
+export function placedDimLines(parts: readonly Board[], dims: readonly PlacedDimension[], units: Units):
+  { frontH: PlacedLine[]; frontV: PlacedLine[]; sideH: PlacedLine[]; detached: number } {
+  const out = { frontH: [] as PlacedLine[], frontV: [] as PlacedLine[], sideH: [] as PlacedLine[], detached: 0 };
+  const route: Record<TapeAxis, [View, 0 | 1, PlacedLine[]]> = { x: [FRONT, 0, out.frontH], y: [FRONT, 1, out.frontV], z: [SIDE, 0, out.sideH] };
+  for (const d of dims) {
+    const pa = resolveAnchor(parts, d.a);
+    const pb = resolveAnchor(parts, d.b);
+    if (!pa || !pb) { out.detached++; continue; }
+    const [view, k, list] = route[d.axis];
+    const a: P2 = [dot(pa, view.right), dot(pa, view.up)];
+    const b: P2 = [dot(pb, view.right), dot(pb, view.up)];
+    const from = Math.min(a[k], b[k]);
+    const to = Math.max(a[k], b[k]);
+    list.push({ id: d.id, from, to, a, b, label: formatLengthBare(to - from, units) });
+  }
+  return out;
+}
+
+/** The sheet's one note for detached dimensions (spec §6.3): nothing disappears silently. */
+export const detachedNote = (n: number) =>
+  n === 1 ? '1 placed dimension not drawn — its part was deleted' : `${n} placed dimensions not drawn — their parts were deleted`;

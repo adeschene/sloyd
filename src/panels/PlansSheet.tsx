@@ -77,9 +77,9 @@ export function PlansSheet({ onClose }: { onClose: () => void }) {
             </section>
             <section className="plans-section">
               <h3>{doc.name}</h3>
-              <PlanTrio parts={parts} units={doc.units} label={doc.name} keyed={pieceKeys} section={section} bandTypes={doc.bandTypes} lines={pieceLines} />
+              <PlanTrio parts={parts} units={doc.units} label={doc.name} keyed={pieceKeys} section={section} bandTypes={doc.bandTypes} lines={pieceLines} placed={doc.dimensions} />
             </section>
-            {section && <SectionBlock parts={parts} section={section} units={doc.units} scale={trioScale(parts, doc.bandTypes)} exploded={exploded} bandTypes={doc.bandTypes} />}
+            {section && <SectionBlock parts={parts} section={section} units={doc.units} scale={trioScale(parts, doc.bandTypes, doc.dimensions, doc.units)} exploded={exploded} bandTypes={doc.bandTypes} />}
             {assemblies.map((a) => (
               <section className="plans-section" key={a.definition}>
                 <h3>{a.title}{a.copies > 1 ? ` × ${a.copies}` : ''}{mirroredNote(a.mirroredCopies)}</h3>

@@ -6,7 +6,8 @@ import { setMirrored } from './treeOps';
 import { worldParts } from './tree';
 import { assemblyDoc, cabinetsDoc } from './treeFixtures';
 import { chiralAngled, chiralHoled, chiralPart } from './turnFixtures';
-import { DIM_EPS, anchorFor, dimensionAxis, dimensionValue, rekeyDimensions, resolveAnchor } from './placedDims';
+import { DIM_EPS, anchorFor, dimensionAxis, dimensionValue, placedDimLines, rekeyDimensions, resolveAnchor } from './placedDims';
+import { IMPERIAL, formatLengthBare } from '../units/length';
 import type { Board, Shape, SloydDocument } from './types';
 
 const near = (a: readonly number[], b: readonly number[]) => a.every((v, i) => Math.abs(v - b[i]!) <= DIM_EPS);
@@ -230,5 +231,50 @@ describe('rekeyDimensions (spec §2.3)', () => {
   it('returns the same document for the identity', () => {
     const d = doc();
     expect(rekeyDimensions(d, (p) => p)).toBe(d);
+  });
+});
+
+describe('placedDimLines (spec §6.1, §6.2)', () => {
+  const at = (p: [number, number, number]) => ({ at: p });
+  const parts = [createBoard({ id: 'p', length: 30, width: 10, thickness: 2, position: [1, 2, 3] })];
+
+  it('routes X to the front horizontal, Y to the front vertical, Z to the side horizontal, projected into the view', () => {
+    const r = placedDimLines(parts, [
+      { id: 'x', axis: 'x', a: at([5, 1, 7]), b: at([2, 1, 7]) },
+      { id: 'y', axis: 'y', a: at([0, 1, 0]), b: at([0, 4, 0]) },
+      { id: 'z', axis: 'z', a: at([0, 0, 1]), b: at([0, 0, 5]) },
+    ], IMPERIAL);
+    expect(r.frontH).toEqual([{ id: 'x', from: 2, to: 5, a: [5, 1], b: [2, 1], label: formatLengthBare(3, IMPERIAL) }]);
+    expect(r.frontV).toEqual([{ id: 'y', from: 1, to: 4, a: [0, 1], b: [0, 4], label: formatLengthBare(3, IMPERIAL) }]);
+    // Side's right is −Z: z 1 → −1, z 5 → −5.
+    expect(r.sideH).toEqual([{ id: 'z', from: -5, to: -1, a: [-1, 0], b: [-5, 0], label: formatLengthBare(4, IMPERIAL) }]);
+    expect(r.detached).toBe(0);
+  });
+
+  it('from < to whichever anchor comes first', () => {
+    const fwd = placedDimLines(parts, [{ id: 'x', axis: 'x', a: at([2, 0, 0]), b: at([5, 0, 0]) }], IMPERIAL).frontH[0]!;
+    const back = placedDimLines(parts, [{ id: 'x', axis: 'x', a: at([5, 0, 0]), b: at([2, 0, 0]) }], IMPERIAL).frontH[0]!;
+    expect([fwd.from, fwd.to]).toEqual([2, 5]);
+    expect([back.from, back.to]).toEqual([2, 5]);
+  });
+
+  it('a part anchor resolves through the part', () => {
+    const r = placedDimLines(parts, [{ id: 'x', axis: 'x', a: { part: 'p', frac: { length: 0, width: 0, thickness: 0 } }, b: { part: 'p', frac: { length: 1, width: 0, thickness: 0 } } }], IMPERIAL);
+    expect([r.frontH[0]!.from, r.frontH[0]!.to]).toEqual([1, 31]);
+    expect(r.frontH[0]!.label).toBe('30"');
+  });
+
+  it('a metric label is bare mm', () => {
+    const r = placedDimLines(parts, [{ id: 'x', axis: 'x', a: at([0, 0, 0]), b: at([10, 0, 0]) }], { display: 'metric-mm', precision: 16 });
+    expect(r.frontH[0]!.label).toBe('254');
+  });
+
+  it('counts a dimension whose part is gone as detached, and lists it nowhere', () => {
+    const r = placedDimLines(parts, [
+      { id: 'gone', axis: 'y', a: { part: 'nope', frac: { length: 0, width: 0, thickness: 0 } }, b: at([0, 4, 0]) },
+      { id: 'x', axis: 'x', a: at([0, 0, 0]), b: at([1, 0, 0]) },
+    ], IMPERIAL);
+    expect(r.detached).toBe(1);
+    expect([...r.frontH, ...r.frontV, ...r.sideH].map((l) => l.id)).toEqual(['x']);
   });
 });
