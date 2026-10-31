@@ -326,7 +326,7 @@ own spec.
 
 ## Amended (build)
 
-Recorded by the build (Task 11, 2026-10-30). **Not yet approved by the user.** Rulings are from the SDD ledger
+Recorded by the build (Task 11, 2026-10-30). **Approved by the user: R11 and R12 ruled 2026-10-30; R1–R10 approved 2026-10-31** ("Yes, approve R1-10"). Rulings are from the SDD ledger
 (`.superpowers/sdd/2026-10-30-sloyd-cam-and-bolt/progress.md`); each changes or settles text above.
 
 **Rulings**

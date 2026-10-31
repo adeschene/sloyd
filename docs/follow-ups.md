@@ -8386,7 +8386,7 @@ browser check `docs/browser-verification-cam-and-bolt-joint.md`, pending). What 
 recogniser (fu 604), the joint as support (fu 605), world end words (fu 606); the build's minors are fu 607; hardware from a pair is fu 600.
 Final review fix wave (2026-10-30): a typed count of 2+ on an end no wider than 2 × 37 mm refuses (R17; it laid out a negative pitch the
 loader drops), and a bore reaching B's plain-linked copy onto a bare face refuses (R18); both in the spec's *Amended (build)* block.
-**Status:** chunk 2 browser-checked 2026-10-31: 12/12 PASS in the user's Chrome (`docs/browser-verification-cam-and-bolt-joint.md`); merged `64d30ea2`; DEPLOYED 2026-10-31 (`640d64c0`, `index-CWjTlx_U.js`); the joint spec's Amended R1–R18 approved by the user 2026-10-31. Residue: fu 602–607.
+**Status:** chunk 2 browser-checked 2026-10-31: 12/12 PASS in the user's Chrome (`docs/browser-verification-cam-and-bolt-joint.md`); merged `64d30ea2`; DEPLOYED 2026-10-31 (`640d64c0`, `index-CWjTlx_U.js`); the joint spec's Amended R1–R18 and chunk 1's R1–R10 approved by the user 2026-10-31. Residue: fu 602–607.
 
 **569. A head on a TILTED row (pocket screws; feature-sized, ask first).** Adding a head to a tilted row and tilting a headed row are refused
 both ways (counterbores spec §3.3): a head there needs elliptical head rings, a stepped capsule for `meets-hole` and a tilted cone, so every

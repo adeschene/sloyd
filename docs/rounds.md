@@ -705,7 +705,7 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 
 ## Owed to the user: spec amendments awaiting review (moved from CLAUDE.md, 2026-10-22)
 
-**APPROVED 2026-10-31:** the cam-and-bolt joint spec's *Amended (build)* R1–R18, all of them (the user, "approve all the rulings").
+**APPROVED 2026-10-31:** the cam-and-bolt joint spec's *Amended (build)* R1–R18, all of them (the user, "approve all the rulings"); and the cam-and-bolt chunk 1 spec's R1–R10 ("Yes, approve R1-10"; R11 and R12 were ruled 2026-10-30), so that spec's block is wholly approved.
 
 **APPROVED 2026-10-23, all of the list below, in bulk** (the user, in the owed-reviews pass; joinery chunks 2–3's calls walked
 through in plain terms first: their words kept, `FEATURE_CHECK_FAILED` now names edging, fu 419's part note fine as is). The
