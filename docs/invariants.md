@@ -2027,6 +2027,10 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       silent `{ at }` (Amended ruling 6). Guide-owned and `offset` points are `{ at }`. `resolveAnchor(anchorFor(p)) ≈ p.at` within 1e-9
       for every point `snapPointsFor` offers (board and cut points; Amended ruling 5), tested over turned, mirrored, leaning (`chiralPart`),
       holed and cut fixtures.
+    - **A same-part dimension turns with its part (ruling 17, 2026-10-31):** `axis` stays a WORLD axis, and `turnDimensions(before, after)`,
+      run in the store's ONE `edit()`, remaps it through the part's old and new `axisDimensions` when an edit changes the frame of the one
+      part both ends sit on (a turn, a posture, an assembly turned). A cross-part or world-ended dimension keeps its axis. It returns
+      `after` itself when nothing changed (`edit()`'s no-op test).
     - **The value is never stored:** `dimensionValue` is `|resolve(b)[axis] − resolve(a)[axis]|`, formatted for display only (invs 18, 25,
       52); the interface has no value field. A resize changes the label.
     - **Keeping one: D in the Tape tool, no new tool.** D (in `App`'s ONE keydown effect, inv 27, `e.key` only) keeps the held anchor →

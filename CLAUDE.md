@@ -547,7 +547,7 @@ changes.
 65. **A placed dimension stores WHAT it measures, never its value: two anchors and a world axis (schema 33).** `placedDims.ts` holds the ONE resolver
     (`resolveAnchor`) and the ONE snap-point→anchor converter (`anchorFor`, `null` for a board point whose part is gone, never a silent `{at}`). A lattice
     anchor is a FRACTION of the part's own size and follows a resize; any other part anchor is LOCAL to its part; a guide-owned or offset anchor is a world
-    point. A `part` is a hint resolved at read time, never repaired on load (inv 33); Group and Ungroup re-key it in the same edit. A detached anchor
+    point. A `part` is a hint resolved at read time, never repaired on load (inv 33); Group and Ungroup re-key it in the same edit; a dimension with both ends on ONE part turns with it (`turnDimensions` in `edit()`). A detached anchor
     never re-attaches to another part, by TWO guarantees: `nextId` never reuses an id, and Ungroup's `fresh()` never lands a path an anchor names (it
     re-mints). D in the Tape tool keeps one through ONE action, `keepTapeDimension` (App's key and the readout's empty-box twin; refused while a distance
     is typed); ONE undo entry, the held points untouched; `tapeNotice` self-invalidates via `shownTapeNotice`. A detached dimension is drawn nowhere, and the
@@ -560,7 +560,7 @@ changes.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 10982 tests (2 todo) across 319 files (timing guards can fail under load; re-run quiet before claiming a regression)
+npm test           # Vitest, currently 10987 tests (2 todo) across 319 files (timing guards can fail under load; re-run quiet before claiming a regression)
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

@@ -463,6 +463,13 @@ Recorded by the build (2026-10-31). **APPROVED by the user 2026-10-31** ("ruling
     D would now keep; and a `Lock an axis…` notice raised with nothing typed stayed shown after typing `3`. `setTapeNotice` also captures
     `typed: tapeTyped`, and `shownTapeNotice` (still the ONE reader) adds `tapeTyped === typed` to ruling 7's condition. No clearing site
     is added (`setTapeTyped` does not clear it). Cost if wrong: a notice hides on any keystroke in the box.
+17. **The user's request after the deploy (2026-10-31, "make dimensions turn with their part"): a same-part dimension turns with its
+    part.** The browser check found a turned shelf's length dimension reading `X 0"` (the world axis kept, §2). Now a dimension with
+    BOTH ends on one part has its stored world axis remapped when an edit changes that part's frame (a turn, a posture change, an
+    assembly turned): `placedDims.ts` `turnDimensions(before, after)`, run in the store's ONE `edit()` beside `pruneMaterials`, through
+    `axisDimensions` of the part's old and new world placement. A dimension between two parts, or with a world (`at`) end, keeps its
+    world axis (no one part owns it; Claude's call). No schema change: `axis` is still a world axis. Cost if wrong: a cross-part
+    dimension does not turn (a follow-up could turn it with its first end's part).
 
 **Spec text these rulings change** (the approved text above is kept; read it with these):
 - §2.2: "every point `boardSnapPoints` produces" reads "every pickable point (`snapPointsFor`)" (5); `anchorFor`'s return is
