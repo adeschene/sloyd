@@ -44,7 +44,8 @@ What it does today is listed round by round in `docs/rounds.md`.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.
 - Design specs: `docs/superpowers/specs/<date>-sloyd-<slug>-design.md` (plans beside them); live
-  checks: `docs/browser-verification-<slug>.md`; screenshots: `docs/img/`.
+  checks: `docs/browser-verification-<slug>.md`; screenshots: `docs/img/` (prefer a DOM readout,
+  add an image when the finding is spatial).
 - **Do not re-propose** two items declined on purpose: CSV/clipboard export and name
   run-collapsing (`Leg 1..4`).
 
