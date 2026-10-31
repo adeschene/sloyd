@@ -1,6 +1,6 @@
 # Sloyd — placed dimensions (fu 253)
 
-Date: 2026-10-31. Status: **draft, awaiting the user's approval.**
+Date: 2026-10-31. Status: approved by the user 2026-10-31; built and merged (`1a8526bd`); browser check run 2026-10-31 (`docs/browser-verification-placed-dimensions.md`); Amended (build) rulings approved 2026-10-31.
 
 The user picked fu 253 on 2026-10-31 and skipped the design questions ("skip the questions, go straight to the
 spec"). Every open call below is **Claude's call**, marked **(call)**, for the user to override while reading. §13
@@ -368,7 +368,7 @@ loading the page only on production. Rollback: `4635ae34` refuses schema 33 proj
 
 ## Amended (build)
 
-Recorded by the build (2026-10-31). **Not yet approved by the user.**
+Recorded by the build (2026-10-31). **APPROVED by the user 2026-10-31** ("rulings approved"; ruling 16 approved earlier the same day).
 
 **Rulings**
 1. **Task 6: packing needs only `DIM_LABEL_PAD` between occupied spans** (§6.2 said "a gap of at least a label's width plus
