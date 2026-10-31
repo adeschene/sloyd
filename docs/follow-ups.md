@@ -8386,6 +8386,7 @@ browser check `docs/browser-verification-cam-and-bolt-joint.md`, pending). What 
 recogniser (fu 604), the joint as support (fu 605), world end words (fu 606); the build's minors are fu 607; hardware from a pair is fu 600.
 Final review fix wave (2026-10-30): a typed count of 2+ on an end no wider than 2 × 37 mm refuses (R17; it laid out a negative pitch the
 loader drops), and a bore reaching B's plain-linked copy onto a bare face refuses (R18); both in the spec's *Amended (build)* block.
+**Status:** chunk 2 browser-checked 2026-10-31: 12/12 PASS in the user's Chrome (`docs/browser-verification-cam-and-bolt-joint.md`); merged `64d30ea2`, not deployed.
 
 **569. A head on a TILTED row (pocket screws; feature-sized, ask first).** Adding a head to a tilted row and tilting a headed row are refused
 both ways (counterbores spec §3.3): a head there needs elliptical head rings, a stepped capsule for `meets-hole` and a tilted cone, so every
@@ -8516,6 +8517,7 @@ becomes a dark maroon). Every floor clears; the tightest are guide/line 26.5 nor
 `src/viewport/snapColors.test.ts` now holds `SNAP_COLORS` to every floor, mutation-tested (round 1's `line` and a lighter corner each fail it).
 Owed: a live look in the user's Chrome (fu 60: the swatches were simulated, not the app).
 **Status:** approved by the user 2026-10-30 ("The colors look good"); built, not deployed (ships with the next deploy).
+**Status:** checked live 2026-10-31 in the user's Chrome on pine, walnut and plywood ("Yes, looks good"; cam-and-bolt joint check 10); not deployed.
 
 **591. Selectable guides: points and lines, in the viewport and the Guides list.** The user's request, 2026-10-30: select a guide point or a
 construction line by clicking it in the viewport or its row in the Guides list; a selected line is emphasised in the viewport; a selected guide is

@@ -35,7 +35,7 @@ import { screenPixelsPerInch } from './screenScale';
  *
  * Browser-settled in the sense of follow-up 60: fu 249's set was checked live
  * against pine, walnut and plywood on this app's own ground; fu 590's set was
- * chosen from simulated swatches and is owed the same live look.
+ * chosen from simulated swatches and checked the same way, live, 2026-10-31.
  */
 export const SNAP_COLORS: Record<SnapKind, string> = {
   corner: '#089300',
