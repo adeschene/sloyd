@@ -35,11 +35,11 @@ What it does today is listed round by round in `docs/rounds.md`.
 
 ## Status
 
-- **Production: `581edd32`, bundle `index-Ca69eV2i.js`, CSS `index-uaGQ0UmW.css`, SCHEMA 32** (cam-and-bolt R11/R12 rulings, after
-  selectable guides fu 591 + cam-and-bolt chunk 1 fu 568; deployed 2026-10-30; earlier rounds: `docs/rounds.md`).
+- **Production: `640d64c0`, bundle `index-CWjTlx_U.js`, CSS `index-uaGQ0UmW.css`, SCHEMA 32** (cam-and-bolt chunk 2, the joint, fu 568,
+  with fu 590's snap hues; deployed 2026-10-31; earlier rounds: `docs/rounds.md`).
 - **Rollback:** the nearest refusing boundary is `fb1e133` (`index-zJyvpYf3.js`, schema 31): it refuses every project saved at 32 —
   export first. Every older boundary: the table in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-30):** owed: the list below. Then: deploy cam-and-bolt chunk 2 (fu 568) with fu 590 (approved).
+- **NEXT (2026-10-31):** owed: the list below (the joint spec's Amended R1–R18 among them). Then the feature-sized list, ask first.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.
@@ -572,7 +572,7 @@ This list is the triage's open set — when an entry's status changes, change it
 - **Feature-sized (need a spec):** 253 and 265 (schema bumps); 257, 258, 268, 270, 271, 274; 404–407 (hardware); angle cuts
   275, 276 (joint kinds only), 280; holes 330, 331, 334; curves 363 (authoring; design checks reading curved bodies),
   364–366; banding 399, 400; splayed legs 449, 450; stretchers 475–478, 480, 481; round tenons 457, 458, 460; square-set legs 470, 471; box joints 485 (and both dovetail kinds), 486–490, 492;
-  dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight); stretch 545–549 (ask first); glue-ups 556 (stored, schema 33 now; ask first), 557–563; cam-and-bolt 568, chunk 2 built, not deployed, 598, 599, 600 (ask first), 602, 603, 605 (ask first); counterbores 569 (a head on a tilted row; ask first), 571 (AI authoring a head; ask first), 572 (a head at a through bore's exit), 573 (plugs as parts); construction lines 583, 584, 586–588 (ask first); selectable guides 592 (schema; ask first), 593, 594 (ask first).
+  dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight); stretch 545–549 (ask first); glue-ups 556 (stored, schema 33 now; ask first), 557–563; cam-and-bolt 568 (chunk 2 deployed; residue 602–606), 598, 599, 600 (ask first), 602, 603, 605 (ask first); counterbores 569 (a head on a tilted row; ask first), 571 (AI authoring a head; ask first), 572 (a head at a through bore's exit), 573 (plugs as parts); construction lines 583, 584, 586–588 (ask first); selectable guides 592 (schema; ask first), 593, 594 (ask first).
 - **Owed to the user, not code:** by eye — counterbores (listed in its spec's *Amended (build)* block), 142, 272 (a phone),
   384(2), 393, 394 (`docs/rounds.md`); 465(2)–(4) (round tenons); 106 (touch/pen); 153 (a browser at quota); a real print — 357
   (Brave, metric margin), 402(2); paid runs 172, 177. 336's grain seam waits for a texture/shader session. X-ray and Stretch (their `docs/browser-verification-*.md`), Saved views (`docs/rounds.md`), by eye. Selectable guides: Save image, A–D by eye (`docs/browser-verification-selectable-guides.md`). Cam-and-bolt: a close look at the window, a Plans print (`docs/browser-verification-cam-and-bolt.md`); chunk 1's spec Amended R1–R10 (R11, R12 built). Joint round: browser check 12/12 PASS 2026-10-31; joint spec Amended R1–R18 await approval.
@@ -587,7 +587,7 @@ This list is the triage's open set — when an entry's status changes, change it
   record-only 513. Half-blind dovetails: 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521.
   Weight: 524 and 525 (ask first); record-only 523, 527. Part labels: 528, 529 and 531 (ask first); record-only 530, 533. Align:
   534–536 and 537's gesture (ask first); record-only 538. X-ray: 539 (ask first); record-only 543. Saved views: 540–542 (ask
-  first); record-only 544. Stretch: 550 (ask first); record-only 551–555. Glue-ups: record-only 565–567. Counterbores: 570 (exploded-iso step rims, an unapproved build ruling); record-only 574, 576 and 577 (575 closed; 576's residue is its other minors). Construction lines round 2: 590 (snap hues retuned to every floor, set C, approved by the user; built, not deployed); record-only 589. Selectable guides: 591 (deployed; Save image and A–D by eye owed), 596 (a ruling); record-only 595. Cam-and-bolt: 606; record-only 597, 601, 604, 607.
+  first); record-only 544. Stretch: 550 (ask first); record-only 551–555. Glue-ups: record-only 565–567. Counterbores: 570 (exploded-iso step rims, an unapproved build ruling); record-only 574, 576 and 577 (575 closed; 576's residue is its other minors). Construction lines round 2: record-only 589 (590 closed, deployed). Selectable guides: 591 (deployed; Save image and A–D by eye owed), 596 (a ruling); record-only 595. Cam-and-bolt: 606; record-only 597, 601, 604, 607.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).
