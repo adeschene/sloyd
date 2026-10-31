@@ -396,3 +396,12 @@ Recorded by the build (2026-10-31). **Not yet approved by the user.**
    order whenever no label is before). `fitPlaced` still terminates: rows and reserves only grow, rows are capped, and an
    overhang is bounded (labels are fixed width; a falling scale only shortens spans). Round 1's fixed limits (`DIM_BAND`
    above the front) flipped a 1-1/2" Y label at the front's top off the viewBox's bottom; this replaces them.
+4. **Task 6 fix round 3 (controller ruling): a placed dimension reaching past its view's drawing is not drawn.** When its
+   span `[from, to]`, or either anchor's projection across it, lies outside the view's drawing bounds by more than `1e-9`
+   inches (an `{at}` anchor off the piece: a guide point, a line, an offset), the sheet does not draw it, and the figure's
+   notes say so per view, named as the "no room" note names them: `Front: 1 placed dimension not drawn — it reaches past
+   the drawing (X 8")` (`2 placed dimensions … — they reach past the drawing (…)`). No part is drawn there, so the line
+   would hang in air or run off the paper; the drawing bounds are never widened, which would move every view's alignment.
+   It is decided before packing, so one also over the row cap is reported once, as off the drawing. The same round leaves
+   `DIM_LABEL_PAD` between front-H's room after `to` and side-H's room before `from`, and `fitPlaced`'s pass guard throws in
+   development and otherwise lays out once more with what was asked, so an overhang is never left unreserved.

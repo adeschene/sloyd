@@ -311,6 +311,17 @@ describe('PlansSheet placed dimensions (placed-dimensions spec §6)', () => {
       : (anchor === 'start') !== rotated ? [at, at + w] : [at - w, at];
     return { text: t, rotated, lo, hi };
   });
+  /** Every line of every placed dimension (extension, dimension line, ticks) lies inside the viewBox. */
+  const lines = (svg: Element, what = '') => {
+    const [, , width, height] = svg.getAttribute('viewBox')!.split(' ').map(Number);
+    for (const l of svg.querySelectorAll('.plan-dim-placed line')) {
+      for (const [x, y] of [['x1', 'y1'], ['x2', 'y2']] as const) {
+        const px = Number(l.getAttribute(x));
+        const py = Number(l.getAttribute(y));
+        expect(px >= 0 && px <= width! && py >= 0 && py <= height!, `${what} line end (${px}, ${py}) of ${width}×${height}`).toBe(true);
+      }
+    }
+  };
   const inside = (svg: Element, what = '') => {
     const [, , width, height] = svg.getAttribute('viewBox')!.split(' ').map(Number);
     for (const e of labelExtents(svg)) {
@@ -358,8 +369,9 @@ describe('PlansSheet placed dimensions (placed-dimensions spec §6)', () => {
     for (const board of boards) {
       const bb = boardsBounds([board])!;
       for (const i of [0, 1, 2] as const) {
-        for (const from of [bb.min[i], (bb.min[i] + bb.max[i]) / 2, bb.max[i]]) {
+        for (const at of ['min', 'mid', 'max', 'ends at max'] as const) {
           for (const span of [0.25, 0.75, 1.5]) {
+            const from = at === 'min' ? bb.min[i] : at === 'mid' ? (bb.min[i] + bb.max[i]) / 2 : at === 'max' ? bb.max[i] : bb.max[i] - span;
             const p = (v: number) => { const q: [number, number, number] = [bb.min[0], bb.min[1], bb.min[2]]; q[i] = v; return q; };
             const axis = (['x', 'y', 'z'] as const)[i];
             act(() => useStore.getState().replaceDocument({
@@ -367,15 +379,19 @@ describe('PlansSheet placed dimensions (placed-dimensions spec §6)', () => {
             }));
             const { container, unmount } = render(<PlansSheet onClose={() => {}} />);
             const svg = pieceFigure(container).querySelector('svg')!;
-            expect(svg.querySelectorAll('.plan-dim-placed text')).toHaveLength(1);
+            // Drawn only when both ends lie on the piece's drawing (Amended ruling 4), judged on the board's own bounds here.
+            const onPiece = from >= bb.min[i] - 1e-9 && from + span <= bb.max[i] + 1e-9;
+            expect(svg.querySelectorAll('.plan-dim-placed text')).toHaveLength(onPiece ? 1 : 0);
+            expect(pieceFigure(container).textContent!.includes('reaches past the drawing')).toBe(!onPiece);
             inside(svg, `${board.id} ${axis} from ${from} span ${span}`);
+            lines(svg, `${board.id} ${axis} from ${from} span ${span}`);
             unmount();
             cases++;
           }
         }
       }
     }
-    expect(cases).toBe(108);
+    expect(cases).toBe(144);
   });
 
   it('every placed label of a crowded figure lies inside the viewBox', () => {
@@ -390,8 +406,77 @@ describe('PlansSheet placed dimensions (placed-dimensions spec §6)', () => {
     }
     const { container } = render(<PlanTrio parts={worldParts(doc)} units={IMPERIAL} label="c" placed={dims} />);
     const svg = container.querySelector('svg')!;
-    expect(svg.querySelectorAll('.plan-dim-placed')).toHaveLength(dims.length);
+    const onPiece = dims.filter((d) => {
+      const i = ({ x: 0, y: 1, z: 2 } as const)[d.axis];
+      const [a, c] = [(d.a as { at: number[] }).at[i]!, (d.b as { at: number[] }).at[i]!];
+      return Math.min(a, c) >= b.min[i] - 1e-9 && Math.max(a, c) <= b.max[i] + 1e-9;
+    });
+    expect(onPiece.length).toBeGreaterThan(8);
+    expect(svg.querySelectorAll('.plan-dim-placed')).toHaveLength(onPiece.length);
     inside(svg);
+    lines(svg);
+  });
+
+  it('a dimension reaching past the drawing is not drawn, and the note says so (Amended ruling 4)', () => {
+    // The re-review's probe: Z −60..−59.75 beside a 30 × 11.25 × 1.5 board drew at x ≈ 1089 of 1000.
+    act(() => useStore.getState().replaceDocument({
+      ...createDocument('P'), boards: [createBoard({ id: 'b', length: 30, width: 11.25, thickness: 1.5 })],
+      dimensions: [{ id: 'z', axis: 'z', a: { at: [0, 0, -60] }, b: { at: [0, 0, -59.75] } }],
+    }));
+    const { container } = render(<PlansSheet onClose={() => {}} />);
+    expect(container.querySelector('.plan-dim-placed')).toBeNull();
+    expect(screen.getByText('Side: 1 placed dimension not drawn — it reaches past the drawing (Z 1/4")')).toBeInTheDocument();
+  });
+
+  it('two off the drawing read plural; one across the drawing (perpendicular) is off it too', () => {
+    act(() => useStore.getState().replaceDocument({
+      ...createDocument('P'), boards: [createBoard({ id: 'b', length: 30, width: 11.25, thickness: 1.5 })],
+      dimensions: [
+        { id: 'x', axis: 'x', a: { at: [-5, 0, 0] }, b: { at: [3, 0, 0] } },
+        // Along X within the board, but 4" above it: its anchors are off the Front drawing across the span.
+        { id: 'x2', axis: 'x', a: { at: [0, 5.5, 0] }, b: { at: [2, 5.5, 0] } },
+      ],
+    }));
+    render(<PlansSheet onClose={() => {}} />);
+    expect(screen.getByText('Front: 2 placed dimensions not drawn — they reach past the drawing (X 8", X 2")')).toBeInTheDocument();
+  });
+
+  it('far off the piece, along or across the span, nothing placed leaves the paper (Amended ruling 4)', () => {
+    const board = createBoard({ id: 'b', length: 30, width: 11.25, thickness: 1.5 });
+    const bb = boardsBounds([board])!;
+    for (const i of [0, 1, 2] as const) {
+      const axis = (['x', 'y', 'z'] as const)[i];
+      for (const shift of [-60, 60]) {
+        for (const across of [false, true]) {
+          // Along: the span itself sits 60" off. Across: the span is on the piece, the anchors 60" off another axis.
+          const j = (i + 1) % 3;
+          const p = (v: number) => {
+            const q: [number, number, number] = [bb.min[0], bb.min[1], bb.min[2]];
+            q[i] = across ? v : v + shift;
+            if (across) q[j] = q[j]! + shift;
+            return q;
+          };
+          act(() => useStore.getState().replaceDocument({
+            ...createDocument('F'), boards: [board], dimensions: [{ id: 'd', axis, a: { at: p(bb.min[i]) }, b: { at: p(bb.min[i] + 0.25) } }],
+          }));
+          const { container, unmount } = render(<PlansSheet onClose={() => {}} />);
+          const svg = pieceFigure(container).querySelector('svg')!;
+          inside(svg, `${axis} ${shift} ${across ? 'across' : 'along'}`);
+          lines(svg, `${axis} ${shift} ${across ? 'across' : 'along'}`);
+          unmount();
+        }
+      }
+    }
+  });
+
+  it('a guide point exactly on the piece\'s face is drawn', () => {
+    act(() => useStore.getState().replaceDocument({
+      ...createDocument('P'), boards: [createBoard({ id: 'b', length: 30, width: 11.25, thickness: 1.5 })],
+      dimensions: [{ id: 'x', axis: 'x', a: { at: [0, 1.5, 11.25] }, b: { at: [30, 1.5, 11.25] } }],
+    }));
+    const { container } = render(<PlansSheet onClose={() => {}} />);
+    expect(container.querySelectorAll('.plan-dim-placed')).toHaveLength(1);
+    expect(screen.queryByText(/reaches past the drawing/)).toBeNull();
   });
 
   it('rows are capped at PLACED_ROWS_MAX per band: the scale stays positive and the note names the rest (Amended ruling 2)', () => {

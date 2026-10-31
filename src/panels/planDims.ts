@@ -75,10 +75,17 @@ export function packPlaced(lines: readonly PlacedLine[], scale: number, room: { 
   return { packed, dropped, overhang };
 }
 
-/** One view's note for the placed dimensions its rows had no room for (ruling 2), each named by its axis and its own
- *  label as `placedDimLines` built it; `null` when none. */
-export function noRoomNote(view: string, dropped: readonly { axis: 'X' | 'Y' | 'Z'; line: PlacedLine }[]): string | null {
+type NotDrawn = readonly { axis: 'X' | 'Y' | 'Z'; line: PlacedLine }[];
+const notDrawn = (view: string, dropped: NotDrawn, why: (n: number) => string): string | null => {
   if (dropped.length === 0) return null;
   const n = dropped.length;
-  return `${view}: ${n} placed dimension${n === 1 ? '' : 's'} not drawn — no room (${dropped.map((d) => `${d.axis} ${d.line.label}`).join(', ')})`;
-}
+  return `${view}: ${n} placed dimension${n === 1 ? '' : 's'} not drawn — ${why(n)} (${dropped.map((d) => `${d.axis} ${d.line.label}`).join(', ')})`;
+};
+
+/** One view's note for the placed dimensions its rows had no room for (ruling 2), each named by its axis and its own
+ *  label as `placedDimLines` built it; `null` when none. */
+export const noRoomNote = (view: string, dropped: NotDrawn) => notDrawn(view, dropped, () => 'no room');
+
+/** One view's note for the placed dimensions reaching past its drawing (ruling 4), named as `noRoomNote` names them. */
+export const offDrawingNote = (view: string, dropped: NotDrawn) =>
+  notDrawn(view, dropped, (n) => (n === 1 ? 'it reaches past the drawing' : 'they reach past the drawing'));
