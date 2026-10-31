@@ -1,6 +1,6 @@
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useStore } from '../store/store';
+import { keepTapeDimension, shownTapeNotice, useStore } from '../store/store';
 import { boardSnapPoints, createDocument, sameSnapPoint, worldParts } from '../document/document';
 import { TapeReadout } from './TapeReadout';
 
@@ -289,6 +289,15 @@ describe('TapeReadout placed dimensions (spec §3)', () => {
     mount(1);
     await userEvent.type(screen.getByLabelText('Guide distance from anchor'), '2');
     expect(hintText()).not.toMatch(/D keeps it/);
+  });
+  it('the typed-pending refusal goes when the box is cleared, and the hint offers D again (ruling 16)', () => {
+    mount(1);
+    act(() => { useStore.getState().setTapeTyped('3'); keepTapeDimension(); });
+    expect(screen.getByTestId('tape-readout-error')).toHaveTextContent('Clear the typed distance to keep a dimension.');
+    act(() => { useStore.getState().setTapeTyped(''); });
+    expect(shownTapeNotice(useStore.getState())).toBeNull();
+    expect(screen.queryByTestId('tape-readout-error')).toBeNull();
+    expect(hintText()).toMatch(/ · D keeps it as a dimension$/);
   });
   it('a notice shows in the error slot and clears when the axis changes', () => {
     mount(2);

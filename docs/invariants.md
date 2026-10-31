@@ -2038,9 +2038,10 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       forced pattern, as X/Y/Z and Escape: the window listener never sees a key typed in the box; inv 28: the hint offers D there). Every
       refusal is decided before `edit()` (inv 4). `addDimension` is ONE
       `edit()`, ONE undo entry, and touches neither the held points nor the selection (none of inv 24's three reasons applies), so a chain
-      of dimensions can be kept from one anchor. The refusal is `tapeNotice`, which is SELF-INVALIDATING: `{ text, anchor, hover, axis }`
-      captures the held objects it was raised against and `shownTapeNotice` (the ONE reader) returns its text only while `tapeAnchor` and
-      `tapeHover` are still those objects (`===`) and `tapeAxis` is equal; no site clears it (Amended ruling 7).
+      of dimensions can be kept from one anchor. The refusal is `tapeNotice`, which is SELF-INVALIDATING: `{ text, anchor, hover, axis, typed }`
+      captures the held objects and the typed text it was raised against and `shownTapeNotice` (the ONE reader) returns its text only while
+      `tapeAnchor` and `tapeHover` are still those objects (`===`), `tapeAxis` is equal and `tapeTyped` is equal (inv 28: typing or
+      clearing the box re-answers D, so the notice goes); no site clears it, `setTapeTyped` included (Amended rulings 7, 16).
     - **Load (`validateDimensions`)** DROPS a malformed entry (a non-string id, an `axis` outside x/y/z, an anchor that is none of the three
       shapes, a `frac` value outside 0/0.5/1, a non-finite number) and KEEPS a well-formed one whose part is gone. Ids by `takeId` in their
       own scope (inv 33). **A `part` is a hint, resolved at read time and never repaired or dropped on load** (the `views[].hidden`

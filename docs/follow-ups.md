@@ -8744,7 +8744,6 @@ Properties panel. Spec §1 non-goals.
 **Status:** open (feature; ask first).
 
 **620. A typed offset joining D.** Digits typed in the Tape readout do not join the kept dimension: D keeps the hover point as it is (spec §3).
-**Status:** open (feature; record-only until asked).
 **Status:** open (feature; record-only until asked). Since the final-review wave D REFUSES while a distance is typed (`Clear the typed distance to
 keep a dimension.`, spec Amended (build) ruling 14), so it never keeps the raw hover under an offset preview; joining the offset stays the feature.
 

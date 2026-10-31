@@ -43,10 +43,11 @@ import { anchorFor, dimensionAxis, dimensionValue, rekeyDimensions, DIM_EPS } fr
 
 const HISTORY_LIMIT = 50;
 
-/** The ONE reader of `tapeNotice`: its text while the held points it was raised against are unchanged (`===`), else null. */
-export function shownTapeNotice(s: Pick<StoreState, 'tapeNotice' | 'tapeAnchor' | 'tapeHover' | 'tapeAxis'>): string | null {
+/** The ONE reader of `tapeNotice`: its text while the held points it was raised against are unchanged (`===`), and the axis
+ *  and typed text are equal (spec Amended (build) ruling 16: a notice never outlives the text it was raised against), else null. */
+export function shownTapeNotice(s: Pick<StoreState, 'tapeNotice' | 'tapeAnchor' | 'tapeHover' | 'tapeAxis' | 'tapeTyped'>): string | null {
   const n = s.tapeNotice;
-  return n && s.tapeAnchor === n.anchor && s.tapeHover === n.hover && s.tapeAxis === n.axis ? n.text : null;
+  return n && s.tapeAnchor === n.anchor && s.tapeHover === n.hover && s.tapeAxis === n.axis && s.tapeTyped === n.typed ? n.text : null;
 }
 
 /** D's refusal while a typed distance is pending (placed-dimensions spec §3, final review): the preview shows the offset
@@ -352,11 +353,12 @@ interface StoreState {
   /**
    * One line of the Tape readout saying why D kept nothing (placed-dimensions spec §3). VIEW state, not a held point, so
    * inv 24 is NOT engaged and no held-point writer mentions it. It is SELF-INVALIDATING: `setTapeNotice` captures the
-   * current `tapeAnchor`, `tapeHover` and `tapeAxis` objects, and `shownTapeNotice` is the ONE reader, returning the text
-   * only while all three are still those same objects. `===`, stricter than `sameSnapPoint`: a hover re-set to an equal
+   * current `tapeAnchor`, `tapeHover` and `tapeAxis` objects and the `tapeTyped` text, and `shownTapeNotice` is the ONE reader,
+   * returning the text only while all four are unchanged (ruling 16: typing or clearing the box re-answers D, so the notice
+   * goes; no clear in `setTapeTyped`). `===`, stricter than `sameSnapPoint`: a hover re-set to an equal
    * object hides the notice, which is acceptable (a fresh pointer move is a fresh pair). Read it only through that function.
    */
-  tapeNotice: { text: string; anchor: SnapPoint | null; hover: SnapPoint | null; axis: TapeAxis | null } | null;
+  tapeNotice: { text: string; anchor: SnapPoint | null; hover: SnapPoint | null; axis: TapeAxis | null; typed: string } | null;
   setTapeNotice: (text: string | null) => void;
   /** The placed dimension under the pointer (spec §7): view state, never in the document, undo or autosave. */
   hoveredDimension: string | null;
@@ -1503,8 +1505,8 @@ export const useStore = create<StoreState>((set, get) => {
 
     setTapeHover: (point) => set({ tapeHover: point }),
     setTapeNotice: (text) => {
-      const { tapeAnchor, tapeHover, tapeAxis } = get();
-      set({ tapeNotice: text === null ? null : { text, anchor: tapeAnchor, hover: tapeHover, axis: tapeAxis } });
+      const { tapeAnchor, tapeHover, tapeAxis, tapeTyped } = get();
+      set({ tapeNotice: text === null ? null : { text, anchor: tapeAnchor, hover: tapeHover, axis: tapeAxis, typed: tapeTyped } });
     },
     setHoveredDimension: (id) => set({ hoveredDimension: id }),
 

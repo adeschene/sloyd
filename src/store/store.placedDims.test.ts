@@ -300,4 +300,25 @@ describe('keepTapeDimension (the ONE D action, spec §3)', () => {
     expect(keepTapeDimension()).toBe(false);
     expect(st().doc.dimensions).toHaveLength(0);
   });
+
+  // Spec Amended (build) ruling 16 (inv 28): the notice is raised against the typed text too, so it never outlives it.
+  it('the typed-pending notice goes when the box is cleared', () => {
+    arm();
+    st().setTapeTyped('3');
+    keepTapeDimension();
+    expect(shownTapeNotice(st())).toBe(TAPE_TYPED_PENDING);
+    st().setTapeTyped('');
+    expect(shownTapeNotice(st())).toBeNull();
+  });
+
+  it('a lock notice raised with nothing typed goes once a distance is typed', () => {
+    const [a] = pair();
+    st().setTool('tape');
+    st().setTapeAnchor(a);
+    st().setTapeHover(a);
+    st().setTapeNotice('Lock an axis (X, Y or Z) to keep a dimension.');
+    expect(shownTapeNotice(st())).not.toBeNull();
+    st().setTapeTyped('3');
+    expect(shownTapeNotice(st())).toBeNull();
+  });
 });

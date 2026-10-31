@@ -458,6 +458,11 @@ Recorded by the build (2026-10-31). **Not yet approved by the user.**
     returns on `isTextEntry`. The box's `onKeyDown` takes D when its text is empty, the forced pattern X/Y/Z and Escape use there,
     and both handlers call ONE action, `keepTapeDimension()` (`store.ts`). With text in the box D is a character. Cost if wrong:
     a `d` cannot begin a typed length (no length begins with `d`).
+16. **Final re-review (approved by the user 2026-10-31 (apply the fix)): a tape notice never outlives the typed text it was raised
+    against (inv 28).** After ruling 14's `Clear the typed distance to keep a dimension.`, clearing the box left the notice shown while
+    D would now keep; and a `Lock an axis…` notice raised with nothing typed stayed shown after typing `3`. `setTapeNotice` also captures
+    `typed: tapeTyped`, and `shownTapeNotice` (still the ONE reader) adds `tapeTyped === typed` to ruling 7's condition. No clearing site
+    is added (`setTapeTyped` does not clear it). Cost if wrong: a notice hides on any keystroke in the box.
 
 **Spec text these rulings change** (the approved text above is kept; read it with these):
 - §2.2: "every point `boardSnapPoints` produces" reads "every pickable point (`snapPointsFor`)" (5); `anchorFor`'s return is
@@ -472,7 +477,7 @@ Recorded by the build (2026-10-31). **Not yet approved by the user.**
   outer edge); a dimension reaching past its view's drawing is not drawn and is noted (4); packing's gap is `DIM_LABEL_PAD` (1).
   Anti-goal 1 ("nothing silently disappears") is kept by the notes in each case.
 - §3: D refuses while a distance is typed (14); D in the focused, empty box keeps the dimension, through one action shared with
-  App's key (15).
+  App's key (15); the refusal notice also lives only while the typed text is unchanged (16).
 - §7: "safe ONLY because an id is never reused" names both guarantees, `nextId` and Ungroup's `fresh()` (13).
 - §9 / inv 65: "never resolve an anchor anywhere but `resolveAnchor`" still holds. `placedDimLines`, `dimensionValue` and
   `rekeyDimensions` all go through it; `anchorFor` is the one converter the other way. Nothing in the build calls `toWorld` for an
@@ -484,4 +489,4 @@ with typed text pending (14) and the orphaned doc comment above `HEAD_NOT_WIDER`
 wording, two labels meeting at their limits) were fixed in its round 3.
 
 **Owed to the user.** The dimension colour (`--dim-placed`, `#e0793a`) by eye; the 21 checks of
-`docs/browser-verification-placed-dimensions.md` (unrun); the Plans sheet print by eye; approval of rulings 1–15 above.
+`docs/browser-verification-placed-dimensions.md` (unrun); the Plans sheet print by eye; approval of rulings 1–15 above (16 is approved).
