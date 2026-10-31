@@ -35,8 +35,8 @@ What it does today is listed round by round in `docs/rounds.md`.
 
 ## Status
 
-- **Production: `640d64c0`, bundle `index-CWjTlx_U.js`, CSS `index-uaGQ0UmW.css`, SCHEMA 32** (cam-and-bolt chunk 2, the joint, fu 568,
-  with fu 590's snap hues; deployed 2026-10-31; earlier rounds: `docs/rounds.md`).
+- **Production: `4635ae34`, bundle `index-SdbOfA5n.js`, CSS `index-uaGQ0UmW.css`, SCHEMA 32** (cam-and-bolt joint Fit again, fu 602;
+  deployed 2026-10-31; earlier rounds: `docs/rounds.md`).
 - **Rollback:** the nearest refusing boundary is `fb1e133` (`index-zJyvpYf3.js`, schema 31): it refuses every project saved at 32 —
   export first. Every older boundary: the table in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
 - **NEXT (2026-10-31):** owed: the list below. Then the feature-sized list, ask first.
