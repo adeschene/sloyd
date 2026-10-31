@@ -8693,4 +8693,20 @@ the selected one (a signature of their boxes and holes) with the same recompute 
   `displayNames` is computed twice; the leaning early return and the per-part catch in `camJointStaleFits` are untested (no observable
   difference, and `camJointPlan`'s binding cannot be mocked from outside), and so is the readout's R14; the section's pre-existing
   `pairSignature` selector runs `worldParts` and a stringify on every store update.
+- Duplicate stray bores at one mouth refuse as TWO_FITS (Amended R5).
+- A carrier that both gains and moves a row cannot happen in a fit (a fit adds no rows); the link-note-wins branch is reachable only in a plain add.
 **Status:** open (record-only).
+
+**613. A fit found but refused for another reason shows no stale signal (ask first).** `stale` (`panels/CamJoint.tsx`) and `camJointStaleFits`
+key only on `moved.length > 0` or `CAM_JOINT_TWO_FITS`. When the planner adopts a set and check 8 (`camJointFaulted`) or R18
+(`CAM_JOINT_BARE_FACE`) then refuses, A's panel shows no note, and the section shows `Add joint` disabled with the Cam face and Fittings fields
+though A's pair is reused. Nothing wrong is written. The remedy would be a plan field saying a fit was attempted on refusals. Cost if left: a
+user who moved a shelf into a fault sees the fault sentence but not that the joint no longer lines up. Fit spec Amended R9.
+**Status:** open (ask first; needs the user's ruling).
+
+**614. With one fitting the shifted-set test rules nothing out, and nothing caps the distance (ask first).** With one missing bore (the default
+on ends under 150 mm), any loose 5 x 12 mm bore anywhere on B's facing face is adopted, the nearest first. So a Cam lock never bored into its
+side but facing one stray bore (e.g. from a deleted shelf 15" away) is offered Fit, the stray is moved, and A's readout says "No longer lines
+up". This partly undoes section 4.2's "never joined must not nag". Cheap remedy if wanted: a distance cap (e.g. half the shelf's width along
+the end). Cost if left: an unrelated bore moved (visible on the button and undoable). Fit spec Amended R10.
+**Status:** open (ask first; needs the user's ruling).

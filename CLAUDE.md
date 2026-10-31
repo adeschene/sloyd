@@ -563,14 +563,14 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–612). Every entry's LAST `**Status:**` line governs
+**`docs/follow-ups.md` is authoritative** (1–614). Every entry's LAST `**Status:**` line governs
 (numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number; some entries close mid-line, so read an entry whole.
 
 - **Feature-sized (need a spec):** 253 and 265 (schema bumps); 257, 258, 268, 270, 271, 274; 404–407 (hardware); angle cuts
   275, 276 (joint kinds only), 280; holes 330, 331, 334; curves 363 (authoring; design checks reading curved bodies),
   364–366; banding 399, 400; splayed legs 449, 450; stretchers 475–478, 480, 481; round tenons 457, 458, 460; square-set legs 470, 471; box joints 485 (and both dovetail kinds), 486–490, 492;
-  dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight); stretch 545–549 (ask first); glue-ups 556 (stored, schema 33 now; ask first), 557–563; cam-and-bolt 568 (chunk 2 deployed; residue 603–606), 598, 599, 600 (ask first), 603, 605 (ask first), 609 (ask first); counterbores 569 (a head on a tilted row; ask first), 571 (AI authoring a head; ask first), 572 (a head at a through bore's exit), 573 (plugs as parts); construction lines 583, 584, 586–588 (ask first); selectable guides 592 (schema; ask first), 593, 594 (ask first).
+  dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight); stretch 545–549 (ask first); glue-ups 556 (stored, schema 33 now; ask first), 557–563; cam-and-bolt 568 (chunk 2 deployed; residue 603–606), 598, 599, 600 (ask first), 605 (ask first), 609, 613, 614 (ask first); counterbores 569 (a head on a tilted row; ask first), 571 (AI authoring a head; ask first), 572 (a head at a through bore's exit), 573 (plugs as parts); construction lines 583, 584, 586–588 (ask first); selectable guides 592 (schema; ask first), 593, 594 (ask first).
 - **Owed to the user, not code:** by eye — counterbores (listed in its spec's *Amended (build)* block), 142, 272 (a phone),
   384(2), 393, 394 (`docs/rounds.md`); 465(2)–(4) (round tenons); 106 (touch/pen); 153 (a browser at quota); a real print — 357
   (Brave, metric margin), 402(2); paid runs 172, 177. 336's grain seam waits for a texture/shader session. X-ray and Stretch (their `docs/browser-verification-*.md`), Saved views (`docs/rounds.md`), by eye. Selectable guides: Save image, A–D by eye (`docs/browser-verification-selectable-guides.md`). Cam-and-bolt: a close look at the window, a Plans print (`docs/browser-verification-cam-and-bolt.md`). Fit again: its browser check (`docs/browser-verification-cam-joint-fit.md`), spec Amended R1–R7.
