@@ -30,6 +30,8 @@ export function PlansSheet({ onClose }: { onClose: () => void }) {
   const [showLines, setShowLines] = useState(false);
   const allLines = useMemo(() => doc.guides.filter(isAnyLine), [doc.guides]);
   const pieceLines = showLines && allLines.length > 0 ? allLines : undefined;
+  // The section keeps the piece trio's scale, placed rows included; memoised, as the slider re-renders the sheet (fu 263).
+  const pieceScale = useMemo(() => trioScale(parts, doc.bandTypes, doc.dimensions, doc.units), [parts, doc.bandTypes, doc.dimensions, doc.units]);
   const [amount, setAmount] = useState(SHEET_EXPLODE);
   // The figure follows the slider at low priority (fu 263): an isometric of a furniture piece takes 100 ms and more to
   // draw, so the thumb moves at once and the figure catches up with the latest value, skipping the ones in between.
@@ -79,7 +81,7 @@ export function PlansSheet({ onClose }: { onClose: () => void }) {
               <h3>{doc.name}</h3>
               <PlanTrio parts={parts} units={doc.units} label={doc.name} keyed={pieceKeys} section={section} bandTypes={doc.bandTypes} lines={pieceLines} placed={doc.dimensions} />
             </section>
-            {section && <SectionBlock parts={parts} section={section} units={doc.units} scale={trioScale(parts, doc.bandTypes, doc.dimensions, doc.units)} exploded={exploded} bandTypes={doc.bandTypes} />}
+            {section && <SectionBlock parts={parts} section={section} units={doc.units} scale={pieceScale} exploded={exploded} bandTypes={doc.bandTypes} />}
             {assemblies.map((a) => (
               <section className="plans-section" key={a.definition}>
                 <h3>{a.title}{a.copies > 1 ? ` × ${a.copies}` : ''}{mirroredNote(a.mirroredCopies)}</h3>

@@ -7,6 +7,9 @@ export const DIM_BAND = 56;
 export const VIEW_GAP = 24;
 /** One row of placed dimensions beyond a view's overall dimension (placed-dimensions spec §6.2). */
 export const DIM_ROW = 40;
+/** At most this many rows of placed dimensions per band (front-below, front-right, side-below; spec Amended ruling 2):
+ *  with every band full the trio still has room, so its scale stays positive. */
+export const PLACED_ROWS_MAX = 6;
 /** User units per inch, at most: a small piece is not blown up to fill the page. */
 export const MAX_PLAN_SCALE = 24;
 /**

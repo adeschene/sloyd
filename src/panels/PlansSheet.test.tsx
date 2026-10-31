@@ -6,6 +6,9 @@ import { ARCH } from '../document/curveFixtures';
 import { cabinetsDoc } from '../document/treeFixtures';
 import { PlansSheet } from './PlansSheet';
 import { PlanTrio, trioScale } from './PlanFigure';
+import { labelWidth } from './diagramLabels';
+import { EXT_GAP } from './planDims';
+import { DIM_BAND, DIM_ROW, MAX_PLAN_SCALE, PLACED_ROWS_MAX, PLAN_WIDTH, TRIO_MAX_HEIGHT, VIEW_GAP } from './planLayout';
 import { IMPERIAL } from '../units/length';
 import type { PlacedDimension } from '../document/types';
 import { boardsBounds } from '../document/geometry';
@@ -294,7 +297,86 @@ describe('PlansSheet placed dimensions (placed-dimensions spec §6)', () => {
     expect(text.textContent).toBe('1/4"');
     expect(text.getAttribute('text-anchor')).toBe('start');
     const dimLine = g.querySelector('.plan-dim > line')!;
-    expect(Number(text.getAttribute('x'))).toBeGreaterThan(Number(dimLine.getAttribute('x2')));
+    expect(Number(text.getAttribute('x'))).toBe(Number(dimLine.getAttribute('x2')) + EXT_GAP);
+  });
+
+  /** Each placed label's drawn extent along its text, from its anchor and `labelWidth` (never from the layout code). */
+  const labelExtents = (svg: Element) => [...svg.querySelectorAll('.plan-dim-placed text')].map((t) => {
+    const w = labelWidth(t.textContent!);
+    const rotated = t.hasAttribute('transform');
+    const at = Number(t.getAttribute(rotated ? 'y' : 'x'));
+    const anchor = t.getAttribute('text-anchor');
+    // Rotated −90, the text runs UP the paper: `start` extends to smaller y.
+    const [lo, hi] = anchor === 'middle' ? [at - w / 2, at + w / 2]
+      : (anchor === 'start') !== rotated ? [at, at + w] : [at - w, at];
+    return { text: t, rotated, lo, hi };
+  });
+  const inside = (svg: Element) => {
+    const [, , width, height] = svg.getAttribute('viewBox')!.split(' ').map(Number);
+    for (const e of labelExtents(svg)) {
+      expect(e.lo).toBeGreaterThanOrEqual(0);
+      expect(e.hi).toBeLessThanOrEqual(e.rotated ? height! : width!);
+    }
+  };
+
+  it('a past label with no room beyond its view\'s outer edge is drawn before from, inside the figure (Amended ruling 3)', () => {
+    const parts = [createBoard({ id: 'b', length: 30, width: 11.25, thickness: 0.75 })];
+    // Z 1-1/4" at the side's right edge (z = 0), and Y 3/16" at the front's top: neither label fits past its span's end.
+    const placed: PlacedDimension[] = [
+      { id: 'z', axis: 'z', a: { at: [0, 0, 0] }, b: { at: [0, 0, 1.25] } },
+      { id: 'y', axis: 'y', a: { at: [0, 0.5625, 0] }, b: { at: [0, 0.75, 0] } },
+    ];
+    const { container } = render(<PlanTrio parts={parts} units={IMPERIAL} label="x" placed={placed} />);
+    const svg = container.querySelector('svg')!;
+    const ext = labelExtents(svg);
+    expect(ext.map((e) => e.text.textContent).sort()).toEqual(['1-1/4"', '3/16"']);
+    for (const e of ext) expect(e.text.getAttribute('text-anchor')).toBe('end');
+    // Horizontal: ends EXT_GAP before the line's from end (x1).
+    const z = ext.find((e) => !e.rotated)!.text;
+    expect(Number(z.getAttribute('x'))).toBe(Number(z.closest('.plan-dim')!.querySelector('line')!.getAttribute('x1')) - EXT_GAP);
+    inside(svg);
+  });
+
+  it('every placed label of a crowded figure lies inside the viewBox', () => {
+    const doc = cabinetsDoc();
+    const b = boardsBounds(worldParts(doc))!;
+    const dims: PlacedDimension[] = [];
+    for (const [axis, i] of [['x', 0], ['y', 1], ['z', 2]] as const) {
+      for (const [lo, hi] of [[b.min[i], b.min[i] + 0.25], [b.max[i] - 0.25, b.max[i]], [b.min[i], b.max[i]], [b.max[i] - 1.25, b.max[i]]]) {
+        const p = (v: number) => { const q: [number, number, number] = [b.min[0], b.min[1], b.min[2]]; q[i] = v; return q; };
+        dims.push({ id: `${axis}${dims.length}`, axis, a: { at: p(lo!) }, b: { at: p(hi!) } });
+      }
+    }
+    const { container } = render(<PlanTrio parts={worldParts(doc)} units={IMPERIAL} label="c" placed={dims} />);
+    const svg = container.querySelector('svg')!;
+    expect(svg.querySelectorAll('.plan-dim-placed')).toHaveLength(dims.length);
+    inside(svg);
+  });
+
+  it('rows are capped at PLACED_ROWS_MAX per band: the scale stays positive and the note names the rest (Amended ruling 2)', () => {
+    const parts = [createBoard({ id: 'b', length: 20, width: 10, thickness: 1, posture: 'upright' })];
+    // 19 heights all from the floor: every one overlaps every other, so each would open a row.
+    const ys: PlacedDimension[] = Array.from({ length: 19 }, (_, k) => ({ id: `y${k + 1}`, axis: 'y', a: { at: [0, 0, 0] }, b: { at: [0, k + 1, 0] } }));
+    const bb = boardsBounds(parts)!;
+    const across = (bb.max[0] - bb.min[0]) + (bb.max[2] - bb.min[2]);
+    const down = (bb.max[2] - bb.min[2]) + (bb.max[1] - bb.min[1]);
+    // Every band full, from the constants alone: still room both ways.
+    const bound = Math.min((PLAN_WIDTH - 4 * DIM_BAND - VIEW_GAP - PLACED_ROWS_MAX * DIM_ROW) / across,
+      (TRIO_MAX_HEIGHT - 4 * DIM_BAND - VIEW_GAP - PLACED_ROWS_MAX * DIM_ROW) / down, MAX_PLAN_SCALE);
+    expect(PLACED_ROWS_MAX).toBe(6);
+    expect(bound).toBeGreaterThan(0);
+    const scale = trioScale(parts, [], ys, IMPERIAL);
+    expect(scale).toBeGreaterThanOrEqual(bound - 1e-12);
+    const { container } = render(<PlanTrio parts={parts} units={IMPERIAL} label="s" placed={ys} />);
+    const drawn = [...container.querySelectorAll('.plan-dim-placed text')].map((t) => t.textContent!);
+    expect(drawn).toHaveLength(6);
+    const note = [...container.querySelectorAll('.plans-notes li')].map((li) => li.textContent!).find((n) => n.includes('no room'))!;
+    const m = /^Front: 13 placed dimensions not drawn — no room \((.*)\)$/.exec(note)!;
+    expect(m).not.toBeNull();
+    const named = m[1]!.split(', ');
+    expect(named.every((n) => n.startsWith('Y '))).toBe(true);
+    expect([...drawn, ...named.map((n) => n.slice(2))].sort()).toEqual(Array.from({ length: 19 }, (_, k) => `${k + 1}"`).sort());
+    inside(container.querySelector('svg')!);
   });
 
   it('a detached dimension is not drawn, and the note says so', () => {

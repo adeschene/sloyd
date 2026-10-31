@@ -374,3 +374,15 @@ Recorded by the build (2026-10-31). **Not yet approved by the user.**
    pad keeps two neighbours' ticks and labels apart. A label that does not fit (`labelWidth + DIM_LABEL_PAD` > the span) is
    drawn past `hi`, and its row reserves `EXT_GAP + labelWidth` beyond `hi` before the pad. `packPlaced` in
    `panels/planDims.ts`; the fit loop (`fitPlaced`) re-packs at each new scale until the row counts hold.
+2. **Task 6 fix round (controller ruling): at most `PLACED_ROWS_MAX = 6` rows per band** (front-below, front-right,
+   side-below; `panels/planLayout.ts`). Without a floor the rows could take the whole page and the scale go negative (shelf
+   heights all measured from the floor share `from = 0`, so each opens a row). A line that would open a 7th row is not
+   drawn, and the figure's notes say so per view, naming each by axis and its own label:
+   `Front: 2 placed dimensions not drawn — no room (Y 24, Y 30)` (`1 placed dimension …` singular; `noRoomNote` in
+   `panels/planDims.ts`). With every band full the trio still has positive room, so the scale stays positive. `fitPlaced`
+   keeps the larger of reserved and asked-for rows per band, so with the cap it settles within `3·6 + 1` passes.
+3. **Task 6 fix round (controller ruling): a past label with no room beyond its view's outer edge is drawn BEFORE `from`**,
+   end-anchored at `from − EXT_GAP`, and packed on that span, `[from·s − EXT_GAP − w, to·s]`. The room: side-H, its right
+   edge plus `DIM_BAND`; front-V, its top plus `DIM_BAND`; front-H, its right edge plus the whole gap to the side view,
+   `DIM_BAND + frontRight·DIM_ROW + VIEW_GAP + DIM_BAND`. Packing therefore sorts by the occupied START (`from·s` unless the
+   label is before it), then `from`, `to`, input order, which is ruling 1's order whenever no label is before.

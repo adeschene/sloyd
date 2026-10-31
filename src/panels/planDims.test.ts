@@ -1,4 +1,4 @@
-import { fitChain, packPlaced, CHAIN_MAX, DIM_LABEL_PAD, EXT_GAP } from './planDims';
+import { fitChain, noRoomNote, packPlaced, CHAIN_MAX, DIM_LABEL_PAD, EXT_GAP } from './planDims';
 import { labelWidth } from './diagramLabels';
 import type { PlacedLine } from '../document/placedDims';
 import type { DimAxis } from '../document/dimensions';
@@ -34,7 +34,7 @@ describe('fitChain', () => {
 describe('packPlaced (placed-dimensions spec §6.2, as amended)', () => {
   const SCALE = 10;
   const line = (id: string, from: number, to: number, label = 'a'): PlacedLine => ({ id, from, to, a: [from, 0], b: [to, 0], label });
-  const rows = (lines: PlacedLine[]) => Object.fromEntries(packPlaced(lines, SCALE).map((p) => [p.line.id, p.row]));
+  const rows = (lines: PlacedLine[]) => Object.fromEntries(packPlaced(lines, SCALE).packed.map((p) => [p.line.id, p.row]));
 
   it('two disjoint spans share row 0', () => {
     // 'a' and its pad fit every span below (the shortest is 30 units): none is past. A ends at 50; B starts at 60 ≥ 50 + 8.
@@ -61,9 +61,9 @@ describe('packPlaced (placed-dimensions spec §6.2, as amended)', () => {
     const start = 3 * SCALE;
     expect(start).toBeGreaterThanOrEqual(0.25 * SCALE + DIM_LABEL_PAD);
     expect(start).toBeLessThan(0.25 * SCALE + EXT_GAP + W + DIM_LABEL_PAD);
-    const out = packPlaced([line('A', 0, 0.25, label), line('B', 3, 10)], SCALE);
-    expect(out.find((p) => p.line.id === 'A')).toMatchObject({ row: 0, past: true });
-    expect(out.find((p) => p.line.id === 'B')).toMatchObject({ row: 1, past: false });
+    const out = packPlaced([line('A', 0, 0.25, label), line('B', 3, 10)], SCALE).packed;
+    expect(out.find((p) => p.line.id === 'A')).toMatchObject({ row: 0, label: 'past' });
+    expect(out.find((p) => p.line.id === 'B')).toMatchObject({ row: 1, label: 'centre' });
   });
 
   it('a span starting past the label\'s room shares the row', () => {
@@ -80,5 +80,39 @@ describe('packPlaced (placed-dimensions spec §6.2, as amended)', () => {
   it('breaks a tie on from by to', () => {
     // Sorted: S [0,3] row 0, L [0,5] row 1, N [4,9] row 0 (30 + 8 ≤ 40). Taking L first would put N in row 1.
     expect(rows([line('L', 0, 5), line('S', 0, 3), line('N', 4, 9)])).toEqual({ S: 0, L: 1, N: 0 });
+  });
+
+  it('a past label that would reach beyond the limit goes before from, and packs on that side (Amended ruling 3)', () => {
+    const label = '1/4"';
+    const W = labelWidth(label);
+    // A [20, 20.25]: past would end at 202.5 + 4 + W, beyond a limit of 210; before, it occupies [200 − 4 − W, 202.5].
+    const limit = 210;
+    expect(20.25 * SCALE + EXT_GAP + W).toBeGreaterThan(limit);
+    const a = packPlaced([line('A', 20, 20.25, label)], SCALE, { limit }).packed[0]!;
+    expect(a.label).toBe('before');
+    // B [0, 15] ends at 150: clear of A's own span (200 − 8) but inside the label's room before it (200 − 4 − W − 8).
+    expect(15 * SCALE + DIM_LABEL_PAD).toBeLessThanOrEqual(20 * SCALE);
+    expect(15 * SCALE + DIM_LABEL_PAD).toBeGreaterThan(20 * SCALE - EXT_GAP - W);
+    expect(Object.fromEntries(packPlaced([line('A', 20, 20.25, label), line('B', 0, 15)], SCALE, { limit }).packed.map((p) => [p.line.id, p.row])))
+      .toEqual({ B: 0, A: 1 });
+    // Within the limit it stays past.
+    expect(packPlaced([line('A', 20, 20.25, label)], SCALE, { limit: 20.25 * SCALE + EXT_GAP + W }).packed[0]!.label).toBe('past');
+  });
+
+  it('a line that would open a row past maxRows is dropped, never drawn (Amended ruling 2)', () => {
+    const lines = [line('A', 0, 5), line('B', 1, 6), line('C', 2, 7)];
+    const r = packPlaced(lines, SCALE, { maxRows: 2 });
+    expect(r.packed.map((p) => [p.line.id, p.row])).toEqual([['A', 0], ['B', 1]]);
+    expect(r.dropped.map((l) => l.id)).toEqual(['C']);
+  });
+});
+
+describe('noRoomNote (Amended ruling 2)', () => {
+  const l = (label: string): PlacedLine => ({ id: label, from: 0, to: 1, a: [0, 0], b: [1, 0], label });
+  it('names each dropped dimension by axis and its own label', () => {
+    expect(noRoomNote('Front', [])).toBeNull();
+    expect(noRoomNote('Side', [{ axis: 'Z', line: l('3') }])).toBe('Side: 1 placed dimension not drawn — no room (Z 3)');
+    expect(noRoomNote('Front', [{ axis: 'X', line: l('24') }, { axis: 'Y', line: l('30') }]))
+      .toBe('Front: 2 placed dimensions not drawn — no room (X 24, Y 30)');
   });
 });

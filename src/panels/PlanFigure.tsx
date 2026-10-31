@@ -6,8 +6,8 @@ import { planLines } from '../document/planLines';
 import { dimensionView, type DimLine } from '../document/dimensions';
 import type { Units } from '../units/length';
 import { explodeOffsets } from '../document/explode';
-import { EXT_GAP, fitChain, packPlaced } from './planDims';
-import { DIM_BAND, DIM_ROW, ISO_MARGIN, PLAN_WIDTH, layoutTrio, toSvg, type Placement, type TrioLayout } from './planLayout';
+import { EXT_GAP, fitChain, noRoomNote, packPlaced, type PackedLine, type PlacedLabel } from './planDims';
+import { DIM_BAND, DIM_ROW, ISO_MARGIN, PLACED_ROWS_MAX, PLAN_WIDTH, VIEW_GAP, layoutTrio, toSvg, type Placement, type TrioLayout } from './planLayout';
 import { detachedNote, placedDimLines, type PlacedLine } from '../document/placedDims';
 import type { Section } from '../document/section';
 import { cuttingLine, hatchPatterns, HATCHES, markedView, sectionTitle, sectionViewOf, type CuttingLine } from '../document/sectionView';
@@ -59,9 +59,10 @@ function Lines({ d, map, hidden }: { d: Drawing; map: ToSvg; hidden: boolean }) 
   );
 }
 
-/** One dimension line between SVG points a and b, label centred; `vertical` rotates the label. A `past` label (a placed
- *  dimension's, too wide for its span; placed-dimensions spec §6.2) starts just beyond `b`, the span's far end. */
-function Dim({ a, b, label, vertical, past = false }: { a: P2; b: P2; label: string; vertical: boolean; past?: boolean }) {
+/** One dimension line between SVG points a and b, label centred; `vertical` rotates the label. A placed dimension's label
+ *  too wide for its span (placed-dimensions spec §6.2, Amended rulings 1, 3) starts just beyond `b` (`past`, the span's far
+ *  end) or ends just before `a` (`before`). */
+function Dim({ a, b, label, vertical, at = 'centre' }: { a: P2; b: P2; label: string; vertical: boolean; at?: PlacedLabel }) {
   const mx = (a[0] + b[0]) / 2;
   const my = (a[1] + b[1]) / 2;
   const tick = (p: P2) => <line x1={p[0] - TICK / 2} y1={p[1] + TICK / 2} x2={p[0] + TICK / 2} y2={p[1] - TICK / 2} />;
@@ -70,10 +71,14 @@ function Dim({ a, b, label, vertical, past = false }: { a: P2; b: P2; label: str
       <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} />
       {tick(a)}
       {tick(b)}
-      {past ? (vertical ? (
+      {at === 'past' ? (vertical ? (
         <text className="plan-dim-label" x={b[0] - EXT_GAP} y={b[1] - EXT_GAP} textAnchor="start" transform={`rotate(-90 ${b[0] - EXT_GAP} ${b[1] - EXT_GAP})`}>{label}</text>
       ) : (
         <text className="plan-dim-label" x={b[0] + EXT_GAP} y={b[1] - EXT_GAP} textAnchor="start">{label}</text>
+      )) : at === 'before' ? (vertical ? (
+        <text className="plan-dim-label" x={a[0] - EXT_GAP} y={a[1] + EXT_GAP} textAnchor="end" transform={`rotate(-90 ${a[0] - EXT_GAP} ${a[1] + EXT_GAP})`}>{label}</text>
+      ) : (
+        <text className="plan-dim-label" x={a[0] - EXT_GAP} y={a[1] - EXT_GAP} textAnchor="end">{label}</text>
       )) : vertical ? (
         <text className="plan-dim-label" x={mx - EXT_GAP} y={my} textAnchor="middle" transform={`rotate(-90 ${mx - EXT_GAP} ${my})`}>{label}</text>
       ) : (
@@ -86,27 +91,43 @@ function Dim({ a, b, label, vertical, past = false }: { a: P2; b: P2; label: str
 interface Fitted { overall: DimLine | null; chain: DimLine[] }
 
 /** Placed dimensions packed into rows (`packPlaced`). */
-type Packed = ReturnType<typeof packPlaced>;
+type Packed = readonly PackedLine[];
 type PlacedLines = ReturnType<typeof placedDimLines>;
+interface PlacedFit { lay: TrioLayout; frontH: Packed; frontV: Packed; sideH: Packed; notes: string[] }
 const rowsOf = (p: Packed) => p.reduce((n, x) => Math.max(n, x.row + 1), 0);
 
 /**
  * The trio's layout with room for its placed dimensions' rows (placed-dimensions spec §6.2), the ONE fit behind both
  * `PlanTrio` and `trioScale` (so the section block keeps the piece trio's scale): lay out, pack at that scale, lay out
- * again with the row counts, repeat until they hold. A smaller scale only adds overlap, so the counts only grow; they
- * cannot pass `lines` in all, so `lines + 1` passes always settle. No lines: exactly `layoutTrio` without rows.
+ * again with the rows packing asked for, until it asks for no more. Each band's label room (Amended ruling 3) is its
+ * view's outer edge plus DIM_BAND, the front's right edge plus the whole gap to the side view. Termination: the reserved
+ * rows only ever grow (each pass keeps the larger of reserved and asked, per band) and each band is capped at
+ * PLACED_ROWS_MAX (ruling 2), so at most 3·PLACED_ROWS_MAX passes grow it and the next one holds. On the pass that holds,
+ * packing at the layout's own scale fits the rows it reserves. No lines: exactly `layoutTrio` without rows.
  */
-export function fitPlaced(drawings: readonly [Drawing, Drawing, Drawing], lines: PlacedLines | null):
-  { lay: TrioLayout; frontH: Packed; frontV: Packed; sideH: Packed } {
+export function fitPlaced(drawings: readonly [Drawing, Drawing, Drawing], lines: PlacedLines | null): PlacedFit {
   const [f, s, t] = drawings;
-  if (!lines) return { lay: layoutTrio(f.bounds, s.bounds, t.bounds), frontH: [], frontV: [], sideH: [] };
+  if (!lines) return { lay: layoutTrio(f.bounds, s.bounds, t.bounds), frontH: [], frontV: [], sideH: [], notes: [] };
   let rows = { frontBelow: 0, frontRight: 0, sideBelow: 0 };
-  const passes = lines.frontH.length + lines.frontV.length + lines.sideH.length + 1;
-  for (let i = 0; ; i++) {
+  for (;;) {
     const lay = layoutTrio(f.bounds, s.bounds, t.bounds, rows);
-    const out = { lay, frontH: packPlaced(lines.frontH, lay.scale), frontV: packPlaced(lines.frontV, lay.scale), sideH: packPlaced(lines.sideH, lay.scale) };
-    const next = { frontBelow: rowsOf(out.frontH), frontRight: rowsOf(out.frontV), sideBelow: rowsOf(out.sideH) };
-    if (i + 1 >= passes || (next.frontBelow === rows.frontBelow && next.frontRight === rows.frontRight && next.sideBelow === rows.sideBelow)) return out;
+    const sc = lay.scale;
+    const pack = (ls: readonly PlacedLine[], limit: number) => packPlaced(ls, sc, { limit, maxRows: PLACED_ROWS_MAX });
+    const fh = pack(lines.frontH, f.bounds.max[0] * sc + DIM_BAND + rows.frontRight * DIM_ROW + VIEW_GAP + DIM_BAND);
+    const fv = pack(lines.frontV, f.bounds.max[1] * sc + DIM_BAND);
+    const sh = pack(lines.sideH, s.bounds.max[0] * sc + DIM_BAND);
+    const next = {
+      frontBelow: Math.max(rows.frontBelow, rowsOf(fh.packed)),
+      frontRight: Math.max(rows.frontRight, rowsOf(fv.packed)),
+      sideBelow: Math.max(rows.sideBelow, rowsOf(sh.packed)),
+    };
+    if (next.frontBelow === rows.frontBelow && next.frontRight === rows.frontRight && next.sideBelow === rows.sideBelow) {
+      const notes = [
+        noRoomNote(FRONT.title, [...fh.dropped.map((line) => ({ axis: 'X' as const, line })), ...fv.dropped.map((line) => ({ axis: 'Y' as const, line }))]),
+        noRoomNote(SIDE.title, sh.dropped.map((line) => ({ axis: 'Z' as const, line }))),
+      ].filter((n): n is string => n !== null);
+      return { lay, frontH: fh.packed, frontV: fv.packed, sideH: sh.packed, notes };
+    }
     rows = next;
   }
 }
@@ -166,25 +187,25 @@ function Elevation({ d, at, scale, h, v, view, lines, placedH, placedV }: {
       <Dim a={[x, Y(line.from)]} b={[x, Y(line.to)]} label={line.label} vertical />
     </g>
   );
-  const hPlaced = ({ line, row, past }: { line: PlacedLine; row: number; past: boolean }) => {
+  const hPlaced = ({ line, row, label }: PackedLine) => {
     const y = bottom + DIM_BAND + (row + 1) * DIM_ROW - 8;
     const ext = (p: P2) => <line className="plan-ext" x1={X(p[0])} y1={Y(p[1])} x2={X(p[0])} y2={y + (y > Y(p[1]) ? TICK : -TICK)} />;
     return (
-      <g className="plan-dim-placed" key={`p${line.id}`}>
+      <g className="plan-dim-placed" key={`ph${line.id}`}>
         {ext(line.a)}
         {ext(line.b)}
-        <Dim a={[X(line.from), y]} b={[X(line.to), y]} label={line.label} vertical={false} past={past} />
+        <Dim a={[X(line.from), y]} b={[X(line.to), y]} label={line.label} vertical={false} at={label} />
       </g>
     );
   };
-  const vPlaced = ({ line, row, past }: { line: PlacedLine; row: number; past: boolean }) => {
+  const vPlaced = ({ line, row, label }: PackedLine) => {
     const x = right + DIM_BAND + (row + 1) * DIM_ROW - 8;
     const ext = (p: P2) => <line className="plan-ext" x1={X(p[0])} y1={Y(p[1])} x2={x + (x > X(p[0]) ? TICK : -TICK)} y2={Y(p[1])} />;
     return (
-      <g className="plan-dim-placed" key={`p${line.id}`}>
+      <g className="plan-dim-placed" key={`pv${line.id}`}>
         {ext(line.a)}
         {ext(line.b)}
-        <Dim a={[x, Y(line.from)]} b={[x, Y(line.to)]} label={line.label} vertical past={past} />
+        <Dim a={[x, Y(line.from)]} b={[x, Y(line.to)]} label={line.label} vertical at={label} />
       </g>
     );
   };
@@ -274,6 +295,7 @@ export const PlanTrio = memo(function PlanTrio({ parts, units, label, keyed, sec
   notes.push(...leaning);
   if (keys.notShown.length > 0) notes.push(`Not shown in these views: ${keys.notShown.join('; ')}.`);
   if (keys.unkeyed.length > 0) notes.push(`Not keyed (no room): ${keys.unkeyed.join(', ')}.`);
+  notes.push(...fit.notes);
   if (placedLines && placedLines.detached > 0) notes.push(detachedNote(placedLines.detached));
   return (
     <figure className="plans-figure-wrap">
