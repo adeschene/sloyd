@@ -44,8 +44,7 @@ What it does today is listed round by round in `docs/rounds.md`.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.
 - Design specs: `docs/superpowers/specs/<date>-sloyd-<slug>-design.md` (plans beside them); live
-  checks: `docs/browser-verification-<slug>.md`; screenshots: `docs/img/` (prefer a DOM readout,
-  add an image when the finding is spatial).
+  checks: `docs/browser-verification-<slug>.md`.
 - **Do not re-propose** two items declined on purpose: CSV/clipboard export and name
   run-collapsing (`Leg 1..4`).
 
@@ -55,13 +54,12 @@ What it does today is listed round by round in `docs/rounds.md`.
 `localStorage` in the user's browser *is* their project, and exercising a feature against
 production would overwrite it with nothing to restore from. So new behaviour is verified
 against the **dev server** in the USER's own Chrome (a MobaXterm tunnel to `localhost:5199`, Claude driving through
-claude-in-chrome, the user watching on real hardware; the browser memory has the setup), and
+claude-in-chrome, the user watching on real hardware), and
 the deploy is confirmed by **bundle hash** at the edge and in-network, plus the edge's
 **CSP header** (`connect-src 'self' https://api.anthropic.com`), which the dev server does
 not send. On PRODUCTION, `localStorage` is confirmed cleared in the verifying browser afterward, checked
 rather than assumed. On the DEV server, test projects a check creates are LEFT in place (the user's ruling, 2026-10-17); never clear the dev profile wholesale either (it holds the user's API key and projects). Paid Generate/joinery runs for testing are approved up to 10 per feature
-without asking (the user's ruling, 2026-10-22); ask before an 11th. The key never goes into chat or a committed file. (Generate was once exercised on production
-because it only ever adds unactivated projects, inv 36. That is not a precedent.)
+without asking (the user's ruling, 2026-10-22); ask before an 11th. The key never goes into chat or a committed file. (Generate was once run on production, inv 36; not a precedent.)
 
 **Rollback cost is a schema question.** A build understanding less than the file's version (32)
 refuses the document. Rolling back past a schema bump strands every project saved since;
@@ -438,7 +436,7 @@ changes.
     the mouth; a headed bore is never a socket and seats no tenon (inv 58). **A CAM PAIR (no schema change): `camBolt.ts` `camPartners` is
     the ONE recogniser, by SHAPE, conservative (borderline stays `meets-hole`); `holeFaults`' meets-hole search is the ONE exemption site
     (skips the partner, keeps searching); planners pass `camPairs: false`; an edit SEPARATING a pair is refused (`separatesPair`).** A clean pair's mesh is one void (`camLoop`, bit-identical from
-    both sides). **`camJoint.ts` `camJointPlan` is the ONE two-part cam-and-bolt planner; every B bore is `boreRow`'s and coaxial with its bolt (`boreAlongAxis`) by test; nothing is stored.** Full text: `docs/invariants.md`.
+    both sides). **`camJoint.ts` `camJointPlan` is the ONE two-part cam-and-bolt planner; every B bore is `boreRow`'s and coaxial with its bolt (`boreAlongAxis`) by test; nothing is stored.** A fit moves only LOOSE B bores (lining up with no cam bolt on any carrier), the nearest shifted set, ties refused, in place. Full text: `docs/invariants.md`.
 51. **The section cut is view state with ONE writer (`setSection`), never in the document, undo or
     autosave** (a saved view copies it); reset only where `explode` is. One shared `THREE.Plane` clips on the GPU (no geometry
     rebuild). **Caps come only from `sectionCaps`** (board-local; bores subtracted). **Picking and snapping read only `keptBySection`**,
@@ -556,7 +554,7 @@ changes.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 10813 tests (2 todo) across 313 files (timing guards can fail under load; re-run quiet before claiming a regression)
+npm test           # Vitest, currently 10848 tests (2 todo) across 314 files (timing guards can fail under load; re-run quiet before claiming a regression)
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -572,10 +570,10 @@ This list is the triage's open set — when an entry's status changes, change it
 - **Feature-sized (need a spec):** 253 and 265 (schema bumps); 257, 258, 268, 270, 271, 274; 404–407 (hardware); angle cuts
   275, 276 (joint kinds only), 280; holes 330, 331, 334; curves 363 (authoring; design checks reading curved bodies),
   364–366; banding 399, 400; splayed legs 449, 450; stretchers 475–478, 480, 481; round tenons 457, 458, 460; square-set legs 470, 471; box joints 485 (and both dovetail kinds), 486–490, 492;
-  dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight); stretch 545–549 (ask first); glue-ups 556 (stored, schema 33 now; ask first), 557–563; cam-and-bolt 568 (chunk 2 deployed; residue 602–606), 598, 599, 600 (ask first), 602, 603, 605 (ask first); counterbores 569 (a head on a tilted row; ask first), 571 (AI authoring a head; ask first), 572 (a head at a through bore's exit), 573 (plugs as parts); construction lines 583, 584, 586–588 (ask first); selectable guides 592 (schema; ask first), 593, 594 (ask first).
+  dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight); stretch 545–549 (ask first); glue-ups 556 (stored, schema 33 now; ask first), 557–563; cam-and-bolt 568 (chunk 2 deployed; residue 603–606), 598, 599, 600 (ask first), 603, 605 (ask first), 609 (ask first), 610; counterbores 569 (a head on a tilted row; ask first), 571 (AI authoring a head; ask first), 572 (a head at a through bore's exit), 573 (plugs as parts); construction lines 583, 584, 586–588 (ask first); selectable guides 592 (schema; ask first), 593, 594 (ask first).
 - **Owed to the user, not code:** by eye — counterbores (listed in its spec's *Amended (build)* block), 142, 272 (a phone),
   384(2), 393, 394 (`docs/rounds.md`); 465(2)–(4) (round tenons); 106 (touch/pen); 153 (a browser at quota); a real print — 357
-  (Brave, metric margin), 402(2); paid runs 172, 177. 336's grain seam waits for a texture/shader session. X-ray and Stretch (their `docs/browser-verification-*.md`), Saved views (`docs/rounds.md`), by eye. Selectable guides: Save image, A–D by eye (`docs/browser-verification-selectable-guides.md`). Cam-and-bolt: a close look at the window, a Plans print (`docs/browser-verification-cam-and-bolt.md`).
+  (Brave, metric margin), 402(2); paid runs 172, 177. 336's grain seam waits for a texture/shader session. X-ray and Stretch (their `docs/browser-verification-*.md`), Saved views (`docs/rounds.md`), by eye. Selectable guides: Save image, A–D by eye (`docs/browser-verification-selectable-guides.md`). Cam-and-bolt: a close look at the window, a Plans print (`docs/browser-verification-cam-and-bolt.md`). Fit again: its browser check (`docs/browser-verification-cam-joint-fit.md`), spec Amended R1–R7.
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain).
 - **Open by decision:** 585 (guide points stay delete-and-replace, fu 130), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
@@ -587,7 +585,7 @@ This list is the triage's open set — when an entry's status changes, change it
   record-only 513. Half-blind dovetails: 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521.
   Weight: 524 and 525 (ask first); record-only 523, 527. Part labels: 528, 529 and 531 (ask first); record-only 530, 533. Align:
   534–536 and 537's gesture (ask first); record-only 538. X-ray: 539 (ask first); record-only 543. Saved views: 540–542 (ask
-  first); record-only 544. Stretch: 550 (ask first); record-only 551–555. Glue-ups: record-only 565–567. Counterbores: 570 (exploded-iso step rims, an unapproved build ruling); record-only 574, 576 and 577 (575 closed; 576's residue is its other minors). Construction lines round 2: record-only 589 (590 closed, deployed). Selectable guides: 591 (deployed; Save image and A–D by eye owed), 596 (a ruling); record-only 595. Cam-and-bolt: 606; record-only 597, 601, 604, 607.
+  first); record-only 544. Stretch: 550 (ask first); record-only 551–555. Glue-ups: record-only 565–567. Counterbores: 570 (exploded-iso step rims, an unapproved build ruling); record-only 574, 576 and 577 (575 closed; 576's residue is its other minors). Construction lines round 2: record-only 589 (590 closed, deployed). Selectable guides: 591 (deployed), 596 (a ruling); record-only 595. Cam-and-bolt: 606, 608, 611; record-only 597, 601, 604, 607, 612.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

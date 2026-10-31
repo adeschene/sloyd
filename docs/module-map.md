@@ -269,9 +269,12 @@ src/
 │   │                     defaultCamLock, R18's bare-face refusal on the trial write (a co-user's B bore against no part); holesKey is the
 │   │                     storage-target rule for linked users, R9) → { writes, reused, notes } | string, defaultCamJointCount,
 │   │                     camFaceOptions (exactly two {from,label}, R2) and defaultCamFrom (the panel's), CAM_JOINT_MAX (12); the
-│   │                     three caller-bug throws stay (R14: the panel and the store catch them)
+│   │                     three caller-bug throws stay (R14: the panel and the store catch them);
+│   │                     FIT AGAIN (fu 602): when A's pair is reused and B bores are missing, the nearest shifted set of B's loose bores is moved in
+│   │                     place (plan.moved: ids; two equally near sets refuse CAM_JOINT_TWO_FITS); R18 and the notes cover moved rows;
+│   │                     camJointStaleFits(doc, id) the readout's reader (world order, kept when a plan moves rows or ties)
 │   ├── camJointText.ts   THE cam-and-bolt joint's copy: every refusal sentence, the link note, the panel's words (no → units edge:
-│   │                     no length is printed); names come in as given (displayNames)
+│   │                     no length is printed); names come in as given (displayNames); fit-again words: camJointStale / camJointStaleNote (the stale line), FIT_CAM_JOINT (the button), camJointMovedNote, CAM_JOINT_TWO_FITS
 │   ├── holes.ts          THE hole geometry (inv 50): HOLE_FIELDS (inv 40; holeRowValues appends each PRESENT tilt key's name
 │   │                     HEAD (counterbores, schema 30, inv 50): HeadKind, HEAD_ANGLES, hasHead, headReach (THE countersink depth formula), headProblem (THE
 │   │                     legality decider: malformed / not-wider / too-deep / tilted; loader and store), Hole.head and .tip, holePieces (the head and the bore, frozen
@@ -780,7 +783,7 @@ src/
 │                     CamJoint (cam-and-bolt joint §4, inv 50): CamJointSection (in the multi-selection panel for exactly two parts,
 │                     inside its EditLock: the joint line, the `Cam face` select, Fittings, `Add joint`, the reuse note, the planner's
 │                     refusal, then the store's link notes; the plan memoised on pairSignature; the joint line names A's end as the
-│                     Holes panel does, R15); CamJoint.test.tsx (the link notes stubbed, R16);
+│                     Holes panel does, R15); CamJointReadout (fit again, fu 602: in the single-part panel after StretcherReadout, the stale line from camJointStaleFits, memo on `s.doc`); on a fit or a tie the section's button reads `Fit the joint again` and Cam face and Fittings hide; CamJoint.test.tsx (the link notes stubbed, R16);
 │                     BoxJoints (box joints §4, inv 61): BoxJointsSection (in the multi-selection panel for two or more parts, inside its EditLock:
 │                     Finger width, Swap fingers, `Box joint the corners`, the notes held in section state); PartDiagram's fingerNotes;
 │                     Dovetails (dovetails §4, inv 62): DovetailsSection (in the multi-selection panel for two or more parts, after Box joints,

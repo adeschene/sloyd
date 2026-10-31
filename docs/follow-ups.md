@@ -8620,7 +8620,7 @@ hardware list. Inv 55 says hardware is TYPED, never derived from holes, so this 
 **602. Cam-and-bolt joint: Fit again (feature-sized).** When A or B moves after the joint is added, B's bolt bores are no longer on A's bolt axes,
 and nothing says so or re-lays them. A "Fit the joint again" would re-plan from A's stored cam rows and move B's bores onto their axes in one
 undo entry (the stretchers' Fit, inv 60). Today the user removes B's rows and adds the joint again.
-**Status:** open (feature).
+**Status:** closed by the fit-again round (2026-10-31, branch `cam-fit`, spec `2026-10-31-sloyd-cam-joint-fit-again-design.md`; no schema change): with A and B selected the section offers `Fit the joint again` when B's loose bores (the planner's shape, lining up with no cam bolt on any carrier) are the missing bores shifted by one common offset; the nearest set is moved in place, ties refuse; A's panel notes a joint that no longer lines up. Browser check `docs/browser-verification-cam-joint-fit.md` (pending); merged, pending deploy. Residue: fu 608–612.
 
 **603. Cam-and-bolt joint: dowels beside each fitting (feature-sized; ask first).** A knock-down joint usually also carries a locating dowel beside
 each cam: a blind bore in A's end face and one in B's face, coaxial. It needs a layout beside the fitting (pitch, size, clear of the cam) and
@@ -8657,4 +8657,40 @@ review may move both to world words (the Align words) together.
   the store re-plans at click time, so nothing wrong is written); a linked shelf's note says it "got these bores too" when it got the cam rows
   (browser check 9; a word for the copy review with fu 606); the two new sentences (`CAM_JOINT_NARROW`, `CAM_JOINT_BARE_FACE`) are the build's
   wording, for the same review.
+**Status:** open (record-only).
+
+## From the cam-and-bolt joint Fit-again round (fu 602) — 2026-10-31
+
+**608. Strays left by an Add after a move under the old behaviour.** Before this round, moving the shelf and pressing Add joint again reused
+A's pair and bored a second set beside the old one. A project saved that way holds both sets; Fit again sees two sets and refuses
+`CAM_JOINT_TWO_FITS` (or, when the old set is the nearer, moves it and leaves the other). The user removes the strays by hand. A cleanup
+that offered to delete bores lining up with no bolt would need the same "loose" judgement plus a confirmation.
+**Status:** open (record-only; cost if wrong: a hand deletion, per such project).
+
+**609. A note on B's own panel (feature-sized; ask first).** A's single-part panel says when its joint no longer lines up (`CamJointReadout`);
+B's panel says nothing, though B holds the bores that moved. Showing it there needs the planner run from B's side (B's own pair is not
+what the planner reuses) or a search of every part butting B's face.
+**Status:** open (feature; ask first).
+
+**610. A partial match after one bore is deleted.** A user who deleted one of a fitting's old bores gets a fresh set and a stray, as before
+this round: the fit adopts only a COMPLETE set of the missing bores shifted by one common offset (spec §8, "No partial match").
+**Status:** open (record-only; a partial fit would need a rule for which bores to keep).
+
+**611. The readout's recompute on every document change.** `CamJointReadout` memos on the document reference (`s.doc`, an immutable
+object: R7 of the fit spec's *Amended (build)*), so `camJointStaleFits` re-runs on any edit while a single part is selected, about 5 ms
+for all of a nine-part table's parts and under 1.1 ms for one. If it is ever measurable on a large project, narrow it to the parts butting
+the selected one (a signature of their boxes and holes) with the same recompute rule.
+**Status:** open (record-only until measured).
+
+**612. Cam-and-bolt joint Fit again: the build's deferred minors (the SDD ledger, by task).**
+- Task 1 (planner): the byte-for-byte test is mostly circular (a no-fit write rests on the unchanged suites); `boreShaped` repeats mm(5)/mm(12)
+  (`boreFor` is the other home); the coaxial assertion is "some bolt axis", not "its own", and there is no candidate-bit assertion; the
+  `existingBore` exclusion cannot be mutated (the bolt test implies it: a matched bore lies on A's bolt axis), which a comment should say.
+- Task 2 (links): the R18-on-moved test has no positive control proving the fit is adopted; no test of a carrier that both gains a row and
+  moves one; the before-holes lookup is repeated.
+- Task 3 (store): the tape test carries redundant lines; the exploded and gesturing refusals share one test.
+- Task 4 (panel): the tie-copies builder, `patched` and `movedY` are duplicated across two test files (they belong in `camJointFixtures.ts`);
+  `displayNames` is computed twice; the leaning early return and the per-part catch in `camJointStaleFits` are untested (no observable
+  difference, and `camJointPlan`'s binding cannot be mocked from outside), and so is the readout's R14; the section's pre-existing
+  `pairSignature` selector runs `worldParts` and a stringify on every store update.
 **Status:** open (record-only).
