@@ -39,6 +39,7 @@ import { pruneMaterials, upsertMaterials, materialUses } from '../document/mater
 import { MAX_ROW } from '../document/row';
 import { clickTarget } from './assemblyPick';
 import { rekeyViews } from '../document/views';
+import { anchorFor, dimensionValue, rekeyDimensions, DIM_EPS } from '../document/placedDims';
 
 const HISTORY_LIMIT = 50;
 
@@ -317,6 +318,17 @@ interface StoreState {
    */
   tapeAxis: TapeAxis | null;
   setTapeAxis: (axis: TapeAxis | null) => void;
+
+  /**
+   * One line of the Tape readout saying why D kept nothing (placed-dimensions spec §3). VIEW state, not a held point, so
+   * inv 24 is NOT engaged and it stays out of `tapeHover`'s enumeration. Cleared to `null` wherever `tapeAnchor` or
+   * `tapeAxis` changes (their setters, `clearTapeAnchor`) and wherever `tapeHover` changes by `!sameSnapPoint`.
+   */
+  tapeNotice: string | null;
+  setTapeNotice: (text: string | null) => void;
+  /** The placed dimension under the pointer (spec §7): view state, never in the document, undo or autosave. */
+  hoveredDimension: string | null;
+  setHoveredDimension: (id: string | null) => void;
 
   addBoard: () => void;
   /**
@@ -666,6 +678,14 @@ interface StoreState {
   addGuide: (at: [number, number, number]) => void;
   /** Add an infinite construction line through `at` along `axis` (construction-lines spec §3.3); false when refused (exploded) or already there. */
   addGuideLine: (line: NewLine) => boolean;
+  /**
+   * Keep a Tape measurement as a placed dimension along `axis` (spec §3, §5). False (no `edit()`, inv 4) when exploded, mid-gesture,
+   * level along `axis` (≤ `DIM_EPS`), or when a board-owned end's part is not in the tree. One undo entry; never touches the held
+   * points or the selection.
+   */
+  addDimension: (a: SnapPoint, b: SnapPoint, axis: TapeAxis) => boolean;
+  /** Remove a placed dimension: one undo entry; refused while exploded, a no-op for an unknown id. */
+  removeDimension: (id: string) => void;
   /** Saved views (spec §3): each is one undo entry, allowed while exploded (inv 47 carve-out), refused mid-gesture. */
   saveView: (camera: SavedViewCamera) => string | null;
   updateView: (id: string, camera: SavedViewCamera) => void;
@@ -810,7 +830,7 @@ export const useStore = create<StoreState>((set, get) => {
     // the guide id is equally gone before and after — but it is written
     // before it to match every other guard in this file.
     if (ownedByGuide(get().tapeAnchor, id)) {
-      set({ tapeAnchor: null, tapeAxis: null });
+      set({ tapeAnchor: null, tapeAxis: null, tapeNotice: null });
     }
     // The same clause for the latched hover, and it is NOT symmetry: a guide
     // is a snap candidate like any other, so "anchor on a board, measure to
@@ -1017,7 +1037,7 @@ export const useStore = create<StoreState>((set, get) => {
         ? guideSelectionPatch(get().selectedGuideIds, hiddenGuides, entry.doc.guides)
         : {}),
       ...selectionPatch(surviving.length === selectedIds.length ? selectedIds : surviving, hidden, open),
-      ...(entry.doc === current ? {} : { grabbed: null, tapeAnchor: null, tapeHover: null, tapeAxis: null }),
+      ...(entry.doc === current ? {} : { grabbed: null, tapeAnchor: null, tapeHover: null, tapeAxis: null, tapeNotice: null }),
     };
   };
 
@@ -1106,7 +1126,7 @@ export const useStore = create<StoreState>((set, get) => {
     const hiddenBefore = get().hiddenIds;
     rekeyHeld(rekey, lift);
     const pastBefore = get().past;
-    edit((d) => rekeyViews(fn(d), rekey, lift), selection); // views follow in the SAME entry (saved views spec §2)
+    edit((d) => rekeyDimensions(rekeyViews(fn(d), rekey, lift), rekey), selection); // dimensions' part ids and views follow in the SAME entry (saved views spec §2)
     const past = get().past;
     // A no-op edit pushes nothing (fu 231); rewriting the top then would clobber
     // an OLDER entry (perhaps a hide run's) or invent one on an empty history.
@@ -1418,6 +1438,8 @@ export const useStore = create<StoreState>((set, get) => {
     tapeHover: null,
     tapeTyped: '',
     tapeAxis: null,
+    tapeNotice: null,
+    hoveredDimension: null,
 
     // Changing tools always drops every held point — the two that can be
     // committed from (`grabbed`, `tapeAnchor`) and the tape's hover, which is
@@ -1431,23 +1453,29 @@ export const useStore = create<StoreState>((set, get) => {
     // hand the next measurement a number the user typed for the previous one.
     setTool: (tool) => {
       if (tool !== 'select' && get().explode > 0) return; // no Move/Tape over an exploded view
-      set({ tool, grabbed: null, tapeAnchor: null, tapeHover: null, tapeTyped: '', tapeAxis: null });
+      set({ tool, grabbed: null, tapeAnchor: null, tapeHover: null, tapeTyped: '', tapeAxis: null, tapeNotice: null });
     },
 
     grabSnapPoint: (point) => set({ grabbed: point }),
 
     cancelGrab: () => set({ grabbed: null }),
 
-    setTapeAnchor: (point) => set({ tapeAnchor: point }),
+    setTapeAnchor: (point) => set({ tapeAnchor: point, tapeNotice: null }),
 
     // Nulls the anchor AND the axis — the axis lives exactly as long as the
     // anchor it locks (see the `tapeAxis` declaration). It does NOT null the
     // hover: the hover follows, but not from here. It is TapeTool's anchor
     // effect (its `useEffect` keyed on `anchor`) that sees the anchor go null
     // and nulls the latched hover in turn.
-    clearTapeAnchor: () => set({ tapeAnchor: null, tapeAxis: null }),
+    clearTapeAnchor: () => set({ tapeAnchor: null, tapeAxis: null, tapeNotice: null }),
 
-    setTapeHover: (point) => set({ tapeHover: point }),
+    setTapeHover: (point) => {
+      const old = get().tapeHover;
+      const same = old === point || (old !== null && point !== null && sameSnapPoint(old, point));
+      set(same ? { tapeHover: point } : { tapeHover: point, tapeNotice: null });
+    },
+    setTapeNotice: (text) => set({ tapeNotice: text }),
+    setHoveredDimension: (id) => set({ hoveredDimension: id }),
 
     setTapeTyped: (text) => set({ tapeTyped: text }),
 
@@ -1455,13 +1483,13 @@ export const useStore = create<StoreState>((set, get) => {
       // An explicit clear always lands — Escape's ladder calls it, and it must
       // work whether or not an anchor is still there.
       if (axis === null) {
-        set({ tapeAxis: null });
+        set({ tapeAxis: null, tapeNotice: null });
         return;
       }
       // A lock with no anchor names no ray. Refused here rather than in each
       // of the two keyboard handlers, so neither needs a guard of its own.
       if (!get().tapeAnchor) return;
-      set({ tapeAxis: get().tapeAxis === axis ? null : axis });
+      set({ tapeAxis: get().tapeAxis === axis ? null : axis, tapeNotice: null });
     },
 
     /**
@@ -1754,7 +1782,7 @@ export const useStore = create<StoreState>((set, get) => {
       const onDoomed = (p: SnapPoint | null) => { const b = p && heldBoard(p); return !!b && isCovered(b, doomed); };
       if (grabbed && isCovered(grabbed.owner.id, doomed)) set({ grabbed: null });
       if (onDoomed(tapeAnchor)) {
-        set({ tapeAnchor: null, tapeAxis: null });
+        set({ tapeAnchor: null, tapeAxis: null, tapeNotice: null });
       }
       if (onDoomed(tapeHover)) {
         set({ tapeHover: null });
@@ -2106,6 +2134,7 @@ export const useStore = create<StoreState>((set, get) => {
         tapeAnchor: null,
         tapeHover: null,
         tapeAxis: null,
+        tapeNotice: null,
         explode: 0,
         section: null,
         xray: false,
@@ -2870,6 +2899,25 @@ export const useStore = create<StoreState>((set, get) => {
       edit((doc) => ({ ...doc, guides: [...doc.guides, guide] }));
     },
 
+    // Placed dimensions spec §3, §5. Every refusal sits BEFORE edit() (inv 4). Touches neither the held points nor the selection.
+    addDimension: (a, b, axis) => {
+      if (readOnly() || get().gesturing) return false;
+      const parts = worldParts(get().doc);
+      const na = anchorFor(parts, a);
+      const nb = anchorFor(parts, b);
+      if (!na || !nb) return false;
+      const dim = { id: nextId(), a: na, b: nb, axis };
+      if (!((dimensionValue(parts, dim) ?? 0) > DIM_EPS)) return false;
+      edit((doc) => ({ ...doc, dimensions: [...doc.dimensions, dim] }));
+      return true;
+    },
+
+    removeDimension: (id) => {
+      if (readOnly()) return;
+      if (!get().doc.dimensions.some((d) => d.id === id)) return;
+      edit((doc) => ({ ...doc, dimensions: doc.dimensions.filter((d) => d.id !== id) }));
+    },
+
     // Construction-lines spec §3.3: canonical (at[axis] = 0), so a duplicate is decided on the line itself. The
     // duplicate check sits BEFORE edit(): edit() pushes an undo snapshot and clears redo, so a no-op add
     // would leave a no-op entry (inv 4) and wipe the redo stack. Like addGuide, selection is untouched.
@@ -2988,7 +3036,7 @@ export const useStore = create<StoreState>((set, get) => {
       // enumerated at `tapeHover`'s declaration, and defensible for the reason
       // they all share: the field it depends on is cleared blanket in the same
       // statement.
-      set({ tapeAnchor: null, tapeHover: null, tapeAxis: null });
+      set({ tapeAnchor: null, tapeHover: null, tapeAxis: null, tapeNotice: null });
       edit((doc) => ({ ...doc, guides: [] }));
     },
   };
