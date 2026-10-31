@@ -5398,7 +5398,7 @@ reader matches it to the cut list by eye. Spec §9, out of scope by decision.
 A dimension tool whose dimensions live in the document needs a schema bump (14) and a rollback cost; spec §9.
 - **Status:** open.
 **Status:** open (feature; needs a spec) (schema bump). (triaged 2026-10-16)
-**Status:** CLOSED 2026-10-31 — placed dimensions (spec `2026-10-31-sloyd-placed-dimensions-design.md`, plan `…-placed-dimensions.md`, branch `placed-dims`, SCHEMA 33, inv 65): D in the Tape tool keeps a measurement as two anchors and an axis, drawn in the viewport, listed in a `Dimensions · N` footer, and printed on the Plans sheet's piece trio. Built and reviewed; not yet merged, browser-checked or deployed. Residue 615–627.
+**Status:** CLOSED 2026-10-31 — placed dimensions (spec `2026-10-31-sloyd-placed-dimensions-design.md`, plan `…-placed-dimensions.md`, branch `placed-dims`, SCHEMA 33, inv 65): D in the Tape tool keeps a measurement as two anchors and an axis, drawn in the viewport, listed in a `Dimensions · N` footer, and printed on the Plans sheet's piece trio. Merged `1a8526bd`; browser check 20 PASS + 1 partial (one bug fixed in it); DEPLOYED 2026-10-31 `3cbdb5dd` (`index-dagGyDyx.js`). Residue 615–628.
 
 **254. Real print-to-PDF of the Plans sheet is unverified.** Only `emulateMedia('print')` was driven (Playwright
 exposes no `pdf()`; the same limit as fu 70/79/84). Unconfirmed: page breaks and the ink on a real printer. The print

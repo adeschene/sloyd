@@ -35,9 +35,9 @@ What it does today is listed round by round in `docs/rounds.md`.
 
 ## Status
 
-- **Production: `4635ae34`, bundle `index-SdbOfA5n.js`, CSS `index-uaGQ0UmW.css`, SCHEMA 32** (cam-and-bolt joint Fit again, fu 602;
+- **Production: `3cbdb5dd`, bundle `index-dagGyDyx.js`, CSS `index-Dsj9hJNc.css`, SCHEMA 33** (placed dimensions, fu 253;
   deployed 2026-10-31; earlier rounds: `docs/rounds.md`).
-- **Rollback:** the nearest refusing boundary is `fb1e133` (`index-zJyvpYf3.js`, schema 31): it refuses every project saved at 32 —
+- **Rollback:** the nearest refusing boundary is `4635ae34` (`index-SdbOfA5n.js`, schema 32): it refuses every project saved at 33 —
   export first. Every older boundary: the table in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
 - **NEXT (2026-10-31):** owed: the list below. Then the feature-sized list, ask first.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
@@ -61,7 +61,7 @@ not send. On PRODUCTION, `localStorage` is confirmed cleared in the verifying br
 rather than assumed. On the DEV server, test projects a check creates are LEFT in place (the user's ruling, 2026-10-17); never clear the dev profile wholesale either (it holds the user's API key and projects). Paid Generate/joinery runs for testing are approved up to 10 per feature
 without asking (the user's ruling, 2026-10-22); ask before an 11th. The key never goes into chat or a committed file. (Generate was once run on production, inv 36; not a precedent.)
 
-**Rollback cost is a schema question.** A build understanding less than the file's version (32)
+**Rollback cost is a schema question.** A build understanding less than the file's version (33)
 refuses the document. Rolling back past a schema bump strands every project saved since;
 export first. A round with no schema change costs nothing to roll back. The library
 round changed the storage *layout*, not the schema: rolling past it loses only projects

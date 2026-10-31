@@ -34,7 +34,7 @@ curves" arrive). Most of these need a schema bump, with the rollback cost that b
 
 | Gap | Notes | Status |
 |---|---|---|
-| Dimensioned drawings | The most-cited gap anywhere ("if I don't have a drawing with dimensions, what's the point of having a great model?"). Per-part diagrams exist; no assembly elevations with dimension strings | shipped (plans-sheet round, deployed 2026-10-12) |
+| Dimensioned drawings | The most-cited gap anywhere ("if I don't have a drawing with dimensions, what's the point of having a great model?"). Per-part diagrams exist; no assembly elevations with dimension strings | shipped (plans-sheet round, deployed 2026-10-12); user-placed dimensions (fu 253: D in the Tape tool keeps a measurement, printed on the piece trio; schema 33) DEPLOYED 2026-10-31 (`3cbdb5dd`, `index-dagGyDyx.js`) |
 | Exploded view | SketchUp scenes / OpenCutList; also shows joinery | shipped (plans-sheet round, deployed 2026-10-12) |
 | Section cut | Clipping plane to see inside a joint | shipped 2026-10-15 (section cut: Front/Side/Top plane, exact caps with bores, viewport only), deployed 2026-10-15 |
 | Standard views | One-click top/front/side; only a perspective/orthographic toggle exists | merged 2026-10-13 (standard views + image export: Front/Side/Top/Iso), deployed 2026-10-13 |
