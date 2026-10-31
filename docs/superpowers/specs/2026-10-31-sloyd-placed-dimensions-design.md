@@ -44,7 +44,8 @@ and reads the new value.
 - **A number that is wrong without saying so.** A dimension's value is always computed from its anchors as they are
   now, never stored. A dimension that cannot be resolved is not drawn, and that is SAID.
 - A dimension that silently stops tracking its part. That would be a world point where a part point was meant.
-- A dimension-free project whose sheet or file changes by a byte.
+- A dimension-free project whose SHEET or drawings change by a byte. (Its FILE gains only `dimensions: []` and the
+  version 33, as `views: []` arrived at v29.)
 - Rounding: the anchors are snap points, exact; the value is formatted for display only (invs 18, 25, 52).
 
 ## 2. The document — schema 33
@@ -101,6 +102,10 @@ because `worldParts` composes them and `toWorld` reads `axisFrame`.
 - **Board-owned** (`owner.type === 'board'`): take the point's own coordinates on its part, `fromWorld(board, p.at)`.
   If every coordinate is within `1e-9` of 0, half the size or the full size on its dimension, the anchor is `frac`.
   Otherwise it is `local`. The test is geometric, not by `kind`, because a hole centre is also a `face-center`. **(call)**
+  **A feature point that coincides with a lattice point** (a hole centred on a face, deduped into the lattice by
+  `preLeanSnapPoints`) cannot be told apart from the lattice point, so it becomes `frac`: on a later resize the
+  dimension follows the face centre, not the hole (which keeps its station, inv 56). Accepted for v1; the list and
+  the label show the new value, so it is never silent. **(call)**
 - **A stepped offset** (`kind: 'offset'`): `at`. It sits in air beside its root point. **(call)**
 - **Guide-owned**: a guide point, a line, a crossing, or a line-face hit (`owner.board`): `at`. A line-face hit
   belongs to its line (inv 26), so it does not follow the part either. **(call)**
@@ -141,7 +146,9 @@ points (`tapeAnchor`, then `tapeHover`), and X/Y/Z already lock an axis (`tapeAx
   condition. **The builder checks that `TapeReadout`'s typed capture never takes `d`.**
 - **Which axis:**
   - with an axis locked, that axis;
-  - otherwise, the one world axis the two points differ on;
+  - otherwise, the one world axis the two points differ on ("differ" and "zero" below both mean by more than `1e-9`, the
+    tolerance `anchorFor` uses: a leaning part's `toWorld` carries ~1e-15 noise, which must not make a clean vertical
+    dimension on a splayed leg read as oblique);
   - if they differ on two or three axes with none locked, D refuses: "Lock an axis (X, Y or Z) to keep a dimension."
     Guessing the axis would print a number the user did not mean (anti-goal 1). **(call)**
 - **Refusals**, said in the readout's message line and decided before `edit()`:
@@ -236,7 +243,11 @@ it**. Each dimension is an interval `[lo, hi]` along the view direction, so:
   `rekey` in the same edit, so the dimension follows its part. (Hidden ids are re-keyed in view state; dimensions are
   document data, so they are re-keyed in the document passed to `edit()`.) A test pins a dimension surviving a
   Group/Ungroup round trip with the same value.
-- **Deleting a part** leaves its dimensions **detached**, and they stay listed. **(call)** The store does not hunt
+- **Deleting a part** leaves its dimensions **detached**, and they stay listed. **(call)** This is safe ONLY because an
+  id is never reused: `ids.ts` `nextId` mints `id_<Date.now()>_<counter>`, so no later part takes a deleted part's
+  path, and a detached dimension cannot silently re-attach to an unrelated part and print its number. (`views[].hidden`
+  is a weaker precedent: a wrong hide is cosmetic, a wrong dimension is not; the guarantee here is the id minting,
+  and a test pins that a new part never resolves a detached anchor.) The store does not hunt
   dimensions down on every path that removes a part: there are many (delete, definition edits that remove a part from
   every copy, Ungroup's dissolve), and missing one would leave a silent dangling reference anyway. A detached row is
   visible and deletable, and undoing the delete re-attaches it, because the id comes back.
@@ -262,7 +273,7 @@ it**. Each dimension is an interval `[lo, hi]` along the view direction, so:
 > A lattice anchor is a FRACTION of the part's own size and follows a resize. Any other part anchor is LOCAL to its part.
 > A guide-owned or offset anchor is a world point. A `part` reference is a hint resolved at read time, never repaired
 > on load (inv 33). Group and Ungroup re-key it in the same edit. A detached dimension is drawn nowhere, and the list
-> and the sheet SAY so. A dimension-free document and sheet are byte for byte as before. **PROHIBITION: never store a
+> and the sheet SAY so. A dimension-free project's sheet and drawings are byte for byte as before (its file gains only `dimensions: []`). **PROHIBITION: never store a
 > dimension's value, and never resolve an anchor anywhere but `resolveAnchor`.**
 
 `docs/invariants.md` takes the full text. CLAUDE.md takes the condensed form and an inv 33 amendment, `versioning.md`
@@ -340,6 +351,7 @@ loading the page only on production. Rollback: `4635ae34` refuses schema 33 proj
 7. **Not drawn in the viewport while exploded or on a hidden part.** Still printed (§4).
 8. **Refine starts without dimensions** (§8).
 9. **Hover highlight** from the list; no viewport selection (§5).
+10. **A hole centred on a face anchors as the face centre** (frac) and follows a resize, not the hole (§2.2).
 
 ## Follow-ups this round will record when it ships
 
@@ -349,3 +361,5 @@ loading the page only on production. Rollback: `4635ae34` refuses schema 33 proj
 - Selecting a dimension in the viewport.
 - Refine carrying dimensions by flat name.
 - A typed offset joining D.
+- fu 258 (live viewport dimensions) gets a note: placed dimensions now draw in the viewport; automatic ones still do not.
+- An anchor that knows a coincident feature (a hole on a face centre) from the lattice point.
