@@ -22,7 +22,7 @@ import { mapWorld, storageKey } from './treeEdit';
 import {
   CAM_JOINT_ALREADY, CAM_JOINT_BARE_FACE, CAM_JOINT_CONTAINERS, CAM_JOINT_COUNT, CAM_JOINT_END_FEATURE, CAM_JOINT_LEAN,
   CAM_JOINT_MIRRORED, CAM_JOINT_NARROW, CAM_JOINT_NONE, CAM_JOINT_ON_EDGE, CAM_JOINT_PARTIAL, CAM_JOINT_SAME_PART,
-  CAM_JOINT_THIN, CAM_JOINT_TWO_LOCKS,
+  CAM_JOINT_THIN, CAM_JOINT_TWO_FITS, CAM_JOINT_TWO_LOCKS,
   camFaceWord, camJointFaulted, camJointLinkNote, type CamEndFeature,
 } from './camJointText';
 
@@ -167,6 +167,11 @@ export interface CamJointPlan {
   /** A's whole pair reused (no rows added to A, the typed count ignored); how many of B's bores were already there. */
   reused: { a: boolean; b: number };
   /**
+   * Fit again (fu 602): the ids of B's rows MOVED in place onto A's bolt axes, in B's list order (`[]` when none). A
+   * moved row keeps its index and id and takes the planned row's values; when any row moves, no row is added.
+   */
+  moved: string[];
+  /**
    * One entry per STORAGE target the plan writes (`StretcherPlan.legs`' rule: a Shape, inv 45, or one stored part every
    * placement of a definition shares): `id` the WORLD occurrence id of the selected part standing for it, `holes` that
    * world part's FULL new hole list in its own frame — its rows plus the new ones (fresh ids, `nextId`), or its list
@@ -257,6 +262,55 @@ function existingBore(b: Board, row: Omit<HoleRow, 'id'>): HoleRow | undefined {
     && (([rm, rf]) => same(rm, m) && same(rf, f))(boreEnds(b, r)));
 }
 
+/** A stored row of B shaped as the planner's B bore (Fit again, fu 602; spec §3.1): one square, headless 5 mm × 12 mm bore
+ *  (each to 1e-9) entering the planned rows' `face` from their `from`. */
+function boreShaped(r: HoleRow, like: Omit<HoleRow, 'id'>): boolean {
+  return r.count === 1 && r.head === undefined && (r.tiltAlong ?? 0) === 0 && (r.tiltAcross ?? 0) === 0
+    && Math.abs(r.diameter - mm(5)) <= EPS && typeof r.depth === 'number' && Math.abs(r.depth - mm(12)) <= EPS
+    && r.face === like.face && r.from === like.from;
+}
+
+/**
+ * Fit again (fu 602; spec §3.1–§3.2): B's LOOSE bores adopted for the `missing` planned rows, as a map from each adopted
+ * row's id to its moved value (the planned row's values, the id kept); null when no shifted set exists; `two` when the two
+ * nearest sets are equally near (to 1e-9). A candidate is a B row shaped as the planner's bore (`boreShaped`), not one of
+ * the planned bores already there (`existingBore`), whose bore on EVERY world part sharing B's holes (`holesKey`, each
+ * judged on its own copy by id) lies along NO bolt hole of any whole cam pair on ANY world part: one joint never takes a
+ * bore another joint's bolt uses, directly or through a link. A shifted set is one world offset `d` and a DISTINCT
+ * candidate at each missing bore's mouth + `d` (per coordinate, 1e-9); every `d` worth trying is a candidate's mouth minus
+ * the first missing bore's. The nearest by `|d|` is adopted (the stretchers' "nearest, ties refuse").
+ */
+function fitOf(doc: SloydDocument, b: Board, planned: Omit<HoleRow, 'id'>[], missing: Omit<HoleRow, 'id'>[]):
+  Map<string, HoleRow> | null | 'two' {
+  const world = worldParts(doc);
+  const bolts = world.flatMap((x) => camPairRows(x).flatMap((p) => boltAxes(x, p.bolt)));
+  const carriers = world.filter((x) => holesKey(doc, x) === holesKey(doc, b));
+  const present = new Set(planned.map((r) => existingBore(b, r)?.id).filter((id) => id !== undefined));
+  const loose = (r: HoleRow) => carriers.every((x) => {
+    const own = x.holes.find((y) => y.id === r.id);
+    return own === undefined || !bolts.some((axis) => boreAlongAxis(x, own, axis));
+  });
+  const candidates = b.holes.filter((r) => boreShaped(r, missing[0]!) && !present.has(r.id) && loose(r))
+    .map((r) => ({ row: r, mouth: boreEnds(b, r)[0] }));
+  const mouths = missing.map((r) => boreEnds(b, { ...r, id: '' })[0]);
+  const sets: { size: number; rows: Map<string, HoleRow> }[] = [];
+  for (const c of candidates) {
+    const d = [0, 1, 2].map((i) => c.mouth[i]! - mouths[0]![i]!);
+    const rows = new Map<string, HoleRow>();
+    const fits = missing.every((m, j) => {
+      const at = mouths[j]!.map((v, i) => v + d[i]!);
+      const hit = candidates.find((x) => !rows.has(x.row.id) && same(x.mouth, at));
+      if (hit) rows.set(hit.row.id, { ...m, id: hit.row.id });
+      return hit !== undefined;
+    });
+    if (fits) sets.push({ size: Math.hypot(d[0]!, d[1]!, d[2]!), rows });
+  }
+  sets.sort((p, q) => p.size - q.size);
+  if (sets.length === 0) return null;
+  if (sets.length > 1 && sets[1]!.size - sets[0]!.size <= EPS) return 'two';
+  return sets[0]!.rows;
+}
+
 /**
  * Add cam-and-bolt joint's plan (spec §3.2–§3.5) between the world parts `ids`, in either order. `count` the fittings
  * (null: chunk 1's rule, two from 150 mm wide, else one); `camFrom` the broad face A's cam enters (null: `defaultFrom`).
@@ -265,10 +319,17 @@ function existingBore(b: Board, row: Omit<HoleRow, 'id'>): HoleRow | undefined {
  * the count (`CAM_JOINT_COUNT`: a whole number from 1 to `CAM_JOINT_MAX`; never read when the lock is reused), A's broad
  * face on its length (`CAM_JOINT_ON_EDGE`), two or more fittings on an end no wider than 2 × 37 mm (`CAM_JOINT_NARROW`,
  * ruling R17) and A at 1/2" or thinner (`CAM_JOINT_THIN`, `defaultCamLock`'s own); everything already there
- * (`CAM_JOINT_ALREADY`); then the faults (check 8): A's new rows judged together (the pair's exemption applies), then B's
- * together with `camPairs: false` (a B bore is never a pair) — `camJointFaulted`; last, on the trial write, a bore of B's
+ * (`CAM_JOINT_ALREADY`); two equally near sets of loose bores to fit (`CAM_JOINT_TWO_FITS`, below); then the faults
+ * (check 8): A's new rows judged together (the pair's exemption applies), then B's moved and new rows together, in B's list
+ * order, with `camPairs: false` (a B bore is never a pair) — `camJointFaulted`; last, on the trial write, a bore of B's
  * reaching another part through its link that would open against no part (`CAM_JOINT_BARE_FACE`, ruling R18).
  * Tilt and head checks are vacuous: every row made here is square (thrown otherwise) and headless.
+ *
+ * Fit again (fu 602; inv 50): when A's pair is REUSED and some planned B bores are missing, B's LOOSE bores (lining up with
+ * no cam bolt on any carrier, `fitOf`) shifted by one common offset from the missing ones are adopted, the nearest set,
+ * ties refused: each adopted row is MOVED in place (its index and id kept, the planned values) and nothing is added. The
+ * trial list REPLACES the row, never appends a copy, so a fit shorter than a bore's width does not meet its own old self.
+ * With no set adopted the plan is the add as before, `moved: []`.
  */
 export function camJointPlan(doc: SloydDocument, ids: [string, string], count: number | null, camFrom: CutFrom | null):
   CamJointPlan | string {
@@ -299,29 +360,36 @@ export function camJointPlan(doc: SloydDocument, ids: [string, string], count: n
   }
   const aAfter: Board = aRows.length > 0 ? { ...a, holes: [...a.holes, ...aRows] } : a;
 
-  // B's bores, one per fitting, those already there reused.
+  // B's bores, one per fitting, those already there reused; the missing ones moved from a loose shifted set (Fit again,
+  // fu 602) or else added.
   const axes = boltAxes(aAfter, pair.bolt);
   const planned = axes.map((axis) => boreFor(b, joint, axis));
-  const bRows = planned.filter((r) => !existingBore(b, r)).map((r) => ({ ...r, id: nextId() }));
-  if (lock && bRows.length === 0) return CAM_JOINT_ALREADY(nameOf(a), nameOf(b));
+  const missing = planned.filter((r) => !existingBore(b, r));
+  if (lock && missing.length === 0) return CAM_JOINT_ALREADY(nameOf(a), nameOf(b));
+  const fit = lock ? fitOf(doc, b, planned, missing) : null;
+  if (fit === 'two') return CAM_JOINT_TWO_FITS(nameOf(b));
+  const bRows: HoleRow[] = fit ? [] : missing.map((r) => ({ ...r, id: nextId() }));
+  const bAfter: Board = { ...b, holes: [...b.holes.map((r) => fit?.get(r.id) ?? r), ...bRows] };
+  const moved = b.holes.filter((r) => fit?.has(r.id)).map((r) => r.id);
+  const bChanged = bRows.length > 0 || moved.length > 0;
 
-  // Check 8: A's new rows on A holding both, then B's on B holding all of its.
+  // Check 8: A's new rows on A holding both, then B's moved and new rows on B holding all of its, in B's list order.
   for (const r of aRows) {
     const f = holeFaults(aAfter, r);
     if (f.length > 0) return camJointFaulted(nameOf(a), socketFaultWords(f[0]!));
   }
-  const bAfter: Board = { ...b, holes: [...b.holes, ...bRows] };
-  for (const r of bRows) {
+  const judged = new Set([...moved, ...bRows.map((r) => r.id)]);
+  for (const r of bAfter.holes.filter((x) => judged.has(x.id))) {
     const f = holeFaults(bAfter, r, { camPairs: false });
     if (f.length > 0) return camJointFaulted(nameOf(b), socketFaultWords(f[0]!));
   }
 
   // The writes, through `mapWorld` on a trial document, read back per storage target (`stretchers.ts`' assembly).
   const trial = mapWorld(doc, (ws) => ws.map((x) => (x.id === a.id && aRows.length > 0 ? { ...x, holes: aAfter.holes }
-    : x.id === b.id && bRows.length > 0 ? { ...x, holes: bAfter.holes } : x)));
+    : x.id === b.id && bChanged ? { ...x, holes: bAfter.holes } : x)));
   const after = worldParts(trial);
-  const write = (x: Board, rows: readonly HoleRow[]) => ({ id: x.id, holes: rows.length > 0 ? after.find((y) => y.id === x.id)!.holes : x.holes });
-  const writes = [write(a, aRows), write(b, bRows)];
+  const write = (x: Board, changed: boolean) => ({ id: x.id, holes: changed ? after.find((y) => y.id === x.id)!.holes : x.holes });
+  const writes = [write(a, aRows.length > 0), write(b, bChanged)];
   const before = new Map(worldParts(doc).map((x) => [x.id, x]));
   // Ruling R18: B's bores reaching ANOTHER part through its link or copy must open against some part, as B's open against
   // A. A plain (not mirrored) link of a carcass's sides lands them on the other side's outside face. Only B's bores, only
@@ -339,8 +407,8 @@ export function camJointPlan(doc: SloydDocument, ids: [string, string], count: n
   const notes = after.filter((x) => x.id !== a.id && x.id !== b.id && JSON.stringify(x.holes) !== JSON.stringify(before.get(x.id)?.holes))
     .map((x) => camJointLinkNote(nameOf(x)));
   return {
-    joint, fittings: axes.length, camFrom: pair.cam.from, reused: { a: aRows.length === 0, b: planned.length - bRows.length },
-    writes, notes,
+    joint, fittings: axes.length, camFrom: pair.cam.from, reused: { a: aRows.length === 0, b: planned.length - missing.length },
+    moved, writes, notes,
   };
 }
 

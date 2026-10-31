@@ -43,6 +43,9 @@ export const CAM_JOINT_PARTIAL = (part: string) =>
   `${part} has a cam lock at that end that isn't whole — remove it, or fix it in Holes, first.`;
 /** Every planned bore is already there. */
 export const CAM_JOINT_ALREADY = (a: string, b: string) => `${a} and ${b} are already joined here.`;
+/** Fit again (fu 602): two shifted sets of B's loose bores equally near the joint's bolt axes (to 1e-9); the planner never
+ *  guesses between them. */
+export const CAM_JOINT_TWO_FITS = (b: string) => `${b} has two sets of bores this joint could fit — remove the ones you don't want first.`;
 /** A new row with a hole fault (`holeFaults`); `words` are `holeText.ts`' fault words. */
 export const camJointFaulted = (part: string, words: string) => `${part}'s bore would ${words} — move or remove what's in the way first.`;
 /** A link or copy co-user of B whose new bore would open onto a bare face, against no part (ruling R18): a plain (not
