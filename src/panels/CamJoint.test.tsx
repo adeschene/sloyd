@@ -190,6 +190,9 @@ describe('Fit the joint again: the section (fit-again spec §4.1)', () => {
     expect(screen.getByText(CAM_JOINT_TWO_FITS('Left side'))).toHaveClass('field-note');
     expect(screen.getByText(camJointStale('Shelf', 'Left side'))).toBeInTheDocument();
     expect(fitButton()).toBeDisabled();
+    // A's pair is reused on a tie, as on a fit: no Cam face or Fittings to edit.
+    expect(screen.queryByLabelText('Cam face')).toBeNull();
+    expect(screen.queryByLabelText('Fittings')).toBeNull();
     const before = s().doc;
     await userEvent.click(fitButton());
     expect(s().doc).toBe(before);

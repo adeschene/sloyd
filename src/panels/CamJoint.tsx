@@ -104,7 +104,7 @@ export function CamJointSection({ ids }: { ids: [string, string] }) {
       <h3>{CAM_JOINT_HEADING}</h3>
       <p className="field-note">{line}</p>
       {stale && <p className="field-note">{stale}</p>}
-      {!reused && !already && (
+      {!reused && !already && !stale && (
         <div className="field-grid field-grid-2">
           {options && (
             <div className="field">
@@ -130,24 +130,21 @@ export function CamJointSection({ ids }: { ids: [string, string] }) {
 /**
  * A part's Cam-and-bolt joint readout (fit-again spec §4.2, fu 602), in the single-part panel: one note per part whose
  * joint with this part's cam locks no longer lines up (`camJointStaleFits`); nothing otherwise, and nothing for a Cam lock
- * whose side was never bored. The memo's signature is every world part, as ONE string (a primitive, inv 43): a part
- * butting this one's ends may be any part. A throw past the planner's own catch is logged and shows nothing (R14).
+ * whose side was never bored. The memo keys on the document itself (a stable reference, inv 43; the document is
+ * immutable, so any part's change — a part butting this one's ends may be any part — is a new document). A throw past the planner's own catch is logged and shows nothing (R14).
  */
 export function CamJointReadout({ board }: { board: { id: string } }) {
-  const units = useStore((s) => s.doc.units);
-  const signature = useStore((s) => JSON.stringify(worldParts(s.doc)));
+  const doc = useStore((s) => s.doc);
   const id = board.id;
   const notes = useMemo(() => {
     try {
-      const doc = useStore.getState().doc;
       const names = displayNames(doc);
       return camJointStaleFits(doc, id).map((f) => camJointStaleNote(names.get(f.b) ?? f.b));
     } catch (e) {
       console.error('CamJointReadout: the planner threw', e);
       return [];
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signature, units, id]);
+  }, [doc, id]);
   if (notes.length === 0) return null;
   return (
     <>
