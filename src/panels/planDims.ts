@@ -26,36 +26,42 @@ export function fitChain(axis: DimAxis, scale: number): { chain: DimLine[]; note
   return { chain: fits, note };
 }
 
-/** Where a placed dimension's label sits: centred in its span, just past `to`, or (no room past `to`) just before `from`. */
+/** Where a placed dimension's label sits: centred in its span, just past `to`, or just before `from`. */
 export type PlacedLabel = 'centre' | 'past' | 'before';
 export interface PackedLine { line: PlacedLine; row: number; label: PlacedLabel }
 
 /**
  * Placed dimensions into rows beyond the overall dimension (placed-dimensions spec §6.2, as amended, rulings 1–3). A span
- * is `[from, to]·scale`, in the view's own direction (up the paper for a vertical one). A label that does not fit its span
- * (with its pad) goes just past `to`, occupying `EXT_GAP + labelWidth` more; when that would reach beyond `limit` (the
- * view's outer edge plus its room, in the same scaled coordinates) it goes just BEFORE `from` instead, occupying as much
- * before it. A centred label lies inside its own span, so only DIM_LABEL_PAD parts two neighbours (ruling 1).
+ * is `[from, to]·scale`, in the view's own direction (up the paper for a vertical one). A centred label lies inside its own
+ * span, so only DIM_LABEL_PAD parts two neighbours (ruling 1). A label that does not fit its span (with its pad) sits by
+ * ROOM (ruling 3), `lo`/`hi` being how far the figure lets a label reach before `from` and after `to`, in the same scaled
+ * coordinates: just past `to` (occupying `EXT_GAP + labelWidth` more) when it ends by `hi`; else just before `from` when
+ * it starts by `lo`; else past `to` all the same, and `overhang` says how far beyond `hi` the farthest such label reaches,
+ * for the layout to reserve: a label is never clipped.
  * Sorted by the occupied start (`from·scale` unless the label is before it), then `from`, `to`, input order; each into the
  * first row whose last occupied end + DIM_LABEL_PAD ≤ its start, else a new row, but never more than `maxRows`: a line
  * that would open one more is `dropped`, for the figure's note to name (ruling 2). The strings arrive built (inv 19).
  * `packed` and `dropped` are in packing order.
  */
-export function packPlaced(lines: readonly PlacedLine[], scale: number, room: { limit?: number; maxRows?: number } = {}):
-  { packed: PackedLine[]; dropped: PlacedLine[] } {
-  const limit = room.limit ?? Infinity;
+export function packPlaced(lines: readonly PlacedLine[], scale: number, room: { lo?: number; hi?: number; maxRows?: number } = {}):
+  { packed: PackedLine[]; dropped: PlacedLine[]; overhang: number } {
+  const lo = room.lo ?? -Infinity;
+  const hi = room.hi ?? Infinity;
   const maxRows = room.maxRows ?? Infinity;
   const order = lines.map((line, i) => {
     const w = labelWidth(line.label);
-    const past = w + DIM_LABEL_PAD > (line.to - line.from) * scale;
-    const label: PlacedLabel = !past ? 'centre' : line.to * scale + EXT_GAP + w > limit ? 'before' : 'past';
-    const start = line.from * scale - (label === 'before' ? EXT_GAP + w : 0);
-    const end = line.to * scale + (label === 'past' ? EXT_GAP + w : 0);
+    const pastEnd = line.to * scale + EXT_GAP + w;
+    const beforeStart = line.from * scale - EXT_GAP - w;
+    const label: PlacedLabel = w + DIM_LABEL_PAD <= (line.to - line.from) * scale ? 'centre'
+      : pastEnd <= hi || beforeStart < lo ? 'past' : 'before';
+    const start = label === 'before' ? beforeStart : line.from * scale;
+    const end = label === 'past' ? pastEnd : line.to * scale;
     return { line, i, label, start, end };
   }).sort((p, q) => p.start - q.start || p.line.from - q.line.from || p.line.to - q.line.to || p.i - q.i);
   const ends: number[] = [];
   const packed: PackedLine[] = [];
   const dropped: PlacedLine[] = [];
+  let overhang = 0;
   for (const { line, label, start, end } of order) {
     let row = ends.findIndex((e) => e + DIM_LABEL_PAD <= start);
     if (row < 0) {
@@ -63,9 +69,10 @@ export function packPlaced(lines: readonly PlacedLine[], scale: number, room: { 
       row = ends.length;
       ends.push(end);
     } else ends[row] = end;
+    if (label === 'past') overhang = Math.max(overhang, end - hi);
     packed.push({ line, row, label });
   }
-  return { packed, dropped };
+  return { packed, dropped, overhang };
 }
 
 /** One view's note for the placed dimensions its rows had no room for (ruling 2), each named by its axis and its own

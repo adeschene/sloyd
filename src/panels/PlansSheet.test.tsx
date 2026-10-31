@@ -311,30 +311,71 @@ describe('PlansSheet placed dimensions (placed-dimensions spec §6)', () => {
       : (anchor === 'start') !== rotated ? [at, at + w] : [at - w, at];
     return { text: t, rotated, lo, hi };
   });
-  const inside = (svg: Element) => {
+  const inside = (svg: Element, what = '') => {
     const [, , width, height] = svg.getAttribute('viewBox')!.split(' ').map(Number);
     for (const e of labelExtents(svg)) {
-      expect(e.lo).toBeGreaterThanOrEqual(0);
-      expect(e.hi).toBeLessThanOrEqual(e.rotated ? height! : width!);
+      expect(e.lo, `${what} ${e.text.textContent} starts at ${e.lo}`).toBeGreaterThanOrEqual(0);
+      expect(e.hi, `${what} ${e.text.textContent} ends at ${e.hi}`).toBeLessThanOrEqual(e.rotated ? height! : width!);
     }
   };
 
-  it('a past label with no room beyond its view\'s outer edge is drawn before from, inside the figure (Amended ruling 3)', () => {
+  it('a past label with no room past the side\'s right edge is drawn before from, inside the figure (Amended ruling 3)', () => {
     const parts = [createBoard({ id: 'b', length: 30, width: 11.25, thickness: 0.75 })];
-    // Z 1-1/4" at the side's right edge (z = 0), and Y 3/16" at the front's top: neither label fits past its span's end.
-    const placed: PlacedDimension[] = [
-      { id: 'z', axis: 'z', a: { at: [0, 0, 0] }, b: { at: [0, 0, 1.25] } },
-      { id: 'y', axis: 'y', a: { at: [0, 0.5625, 0] }, b: { at: [0, 0.75, 0] } },
-    ];
+    // Z 1-1/4" at the side's right edge (z = 0): the label does not fit the viewBox's right margin.
+    const placed: PlacedDimension[] = [{ id: 'z', axis: 'z', a: { at: [0, 0, 0] }, b: { at: [0, 0, 1.25] } }];
     const { container } = render(<PlanTrio parts={parts} units={IMPERIAL} label="x" placed={placed} />);
     const svg = container.querySelector('svg')!;
-    const ext = labelExtents(svg);
-    expect(ext.map((e) => e.text.textContent).sort()).toEqual(['1-1/4"', '3/16"']);
-    for (const e of ext) expect(e.text.getAttribute('text-anchor')).toBe('end');
-    // Horizontal: ends EXT_GAP before the line's from end (x1).
-    const z = ext.find((e) => !e.rotated)!.text;
+    const z = labelExtents(svg)[0]!.text;
+    expect(z.textContent).toBe('1-1/4"');
+    expect(z.getAttribute('text-anchor')).toBe('end');
     expect(Number(z.getAttribute('x'))).toBe(Number(z.closest('.plan-dim')!.querySelector('line')!.getAttribute('x1')) - EXT_GAP);
     inside(svg);
+  });
+
+  it('a Y label at the front\'s top goes up into the plan–front gap, never off the bottom (fix round 2 repro)', () => {
+    // Round 1 flipped this label below from = the floor, off the viewBox's bottom (to y = 490.5 of 468.07).
+    act(() => useStore.getState().replaceDocument({
+      ...createDocument('R'), boards: [createBoard({ id: 'b', length: 30, width: 11.25, thickness: 1.5 })],
+      dimensions: [{ id: 'y', axis: 'y', a: { at: [0, 0, 0] }, b: { at: [0, 1.5, 0] } }],
+    }));
+    const { container } = render(<PlansSheet onClose={() => {}} />);
+    const svg = pieceFigure(container).querySelector('svg')!;
+    const [y] = labelExtents(svg);
+    expect(y!.text.textContent).toBe('1-1/2"');
+    expect(y!.text.getAttribute('text-anchor')).toBe('start');
+    inside(svg);
+  });
+
+  it('the sweep: every placed label lies inside its figure, any board, axis, face and short span', () => {
+    const boards = [
+      createBoard({ id: 'flat', length: 30, width: 11.25, thickness: 1.5 }),
+      createBoard({ id: 'tall', length: 84, width: 18, thickness: 12, posture: 'upright' }),
+      createBoard({ id: 'small', length: 3, width: 3, thickness: 0.75 }),
+      // A tall side panel seen edge-on in Side: too little room either side of a Z label, so the layout must reserve it.
+      createBoard({ id: 'thin', length: 84, width: 18, thickness: 0.75, posture: 'upright' }),
+    ];
+    let cases = 0;
+    for (const board of boards) {
+      const bb = boardsBounds([board])!;
+      for (const i of [0, 1, 2] as const) {
+        for (const from of [bb.min[i], (bb.min[i] + bb.max[i]) / 2, bb.max[i]]) {
+          for (const span of [0.25, 0.75, 1.5]) {
+            const p = (v: number) => { const q: [number, number, number] = [bb.min[0], bb.min[1], bb.min[2]]; q[i] = v; return q; };
+            const axis = (['x', 'y', 'z'] as const)[i];
+            act(() => useStore.getState().replaceDocument({
+              ...createDocument('S'), boards: [board], dimensions: [{ id: 'd', axis, a: { at: p(from) }, b: { at: p(from + span) } }],
+            }));
+            const { container, unmount } = render(<PlansSheet onClose={() => {}} />);
+            const svg = pieceFigure(container).querySelector('svg')!;
+            expect(svg.querySelectorAll('.plan-dim-placed text')).toHaveLength(1);
+            inside(svg, `${board.id} ${axis} from ${from} span ${span}`);
+            unmount();
+            cases++;
+          }
+        }
+      }
+    }
+    expect(cases).toBe(108);
   });
 
   it('every placed label of a crowded figure lies inside the viewBox', () => {

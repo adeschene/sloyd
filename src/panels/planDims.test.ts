@@ -82,21 +82,37 @@ describe('packPlaced (placed-dimensions spec §6.2, as amended)', () => {
     expect(rows([line('L', 0, 5), line('S', 0, 3), line('N', 4, 9)])).toEqual({ S: 0, L: 1, N: 0 });
   });
 
-  it('a past label that would reach beyond the limit goes before from, and packs on that side (Amended ruling 3)', () => {
+  it('a past label goes by room: past to when it fits hi, else before from when it fits lo (Amended ruling 3)', () => {
     const label = '1/4"';
     const W = labelWidth(label);
-    // A [20, 20.25]: past would end at 202.5 + 4 + W, beyond a limit of 210; before, it occupies [200 − 4 − W, 202.5].
-    const limit = 210;
-    expect(20.25 * SCALE + EXT_GAP + W).toBeGreaterThan(limit);
-    const a = packPlaced([line('A', 20, 20.25, label)], SCALE, { limit }).packed[0]!;
+    // A [20, 20.25]: past would end at 202.5 + 4 + W, beyond hi = 210; before, it occupies [200 − 4 − W, 202.5].
+    const hi = 210;
+    expect(20.25 * SCALE + EXT_GAP + W).toBeGreaterThan(hi);
+    const a = packPlaced([line('A', 20, 20.25, label)], SCALE, { hi }).packed[0]!;
     expect(a.label).toBe('before');
     // B [0, 15] ends at 150: clear of A's own span (200 − 8) but inside the label's room before it (200 − 4 − W − 8).
     expect(15 * SCALE + DIM_LABEL_PAD).toBeLessThanOrEqual(20 * SCALE);
     expect(15 * SCALE + DIM_LABEL_PAD).toBeGreaterThan(20 * SCALE - EXT_GAP - W);
-    expect(Object.fromEntries(packPlaced([line('A', 20, 20.25, label), line('B', 0, 15)], SCALE, { limit }).packed.map((p) => [p.line.id, p.row])))
+    expect(Object.fromEntries(packPlaced([line('A', 20, 20.25, label), line('B', 0, 15)], SCALE, { hi }).packed.map((p) => [p.line.id, p.row])))
       .toEqual({ B: 0, A: 1 });
-    // Within the limit it stays past.
-    expect(packPlaced([line('A', 20, 20.25, label)], SCALE, { limit: 20.25 * SCALE + EXT_GAP + W }).packed[0]!.label).toBe('past');
+    // Ending exactly at hi it stays past, and reports no overhang.
+    const atHi = packPlaced([line('A', 20, 20.25, label)], SCALE, { hi: 20.25 * SCALE + EXT_GAP + W });
+    expect(atHi.packed[0]!.label).toBe('past');
+    expect(atHi.overhang).toBe(0);
+  });
+
+  it('a label fitting neither side goes past to and reports its overhang beyond hi, for the layout to reserve', () => {
+    const label = '1/4"';
+    const W = labelWidth(label);
+    const hi = 210;
+    const lo = 20 * SCALE - EXT_GAP - W + 1; // one unit short of room before from
+    const r = packPlaced([line('A', 20, 20.25, label), line('C', 0, 10)], SCALE, { lo, hi });
+    expect(r.packed.find((p) => p.line.id === 'A')!.label).toBe('past');
+    expect(r.overhang).toBeCloseTo(20.25 * SCALE + EXT_GAP + W - hi, 9);
+    // With room before from it would have gone there, with nothing to reserve.
+    const ok = packPlaced([line('A', 20, 20.25, label)], SCALE, { lo: lo - 1, hi });
+    expect(ok.packed[0]!.label).toBe('before');
+    expect(ok.overhang).toBe(0);
   });
 
   it('a line that would open a row past maxRows is dropped, never drawn (Amended ruling 2)', () => {

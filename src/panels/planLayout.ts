@@ -24,8 +24,13 @@ export const ISO_MARGIN = 16;
 export interface Rect2 { min: [number, number]; max: [number, number] }
 /** SVG position of a view's (min right, max up) corner. */
 export interface Placement { x: number; y: number }
-/** Rows of placed dimensions (spec §6.2): under the front, right of the front, under the side. */
-export interface TrioRows { frontBelow: number; frontRight: number; sideBelow: number }
+/** Rows of placed dimensions (spec §6.2): under the front, right of the front, under the side; and the room (SVG units)
+ *  reserved for labels that overhang their band (Amended ruling 3): into the front–side gap, past the side's right
+ *  band, and between the plan and the front. Absent is 0. */
+export interface TrioRows {
+  frontBelow: number; frontRight: number; sideBelow: number;
+  overGap?: number; overRight?: number; overTop?: number;
+}
 const NO_ROWS: TrioRows = { frontBelow: 0, frontRight: 0, sideBelow: 0 };
 export interface TrioLayout { scale: number; width: number; height: number; front: Placement; side: Placement; top: Placement }
 
@@ -38,23 +43,26 @@ const h = (r: Rect2) => r.max[1] - r.min[1];
  * PLAN_WIDTH across and TRIO_MAX_HEIGHT down, whichever binds (fu 254): fitting the width alone sent a
  * tall piece off the printed page, and `break-inside: avoid` cannot split one figure.
  * `extra` rows of placed dimensions (spec §6.2) widen the front–side gap (`frontRight`) and add `max(frontBelow,
- * sideBelow)` rows under both; each counts in its direction's band sum. Zero rows are exactly the layout without them.
+ * sideBelow)` rows under both; the overhang room widens the gap, the right margin or the plan–front gap. Each counts in
+ * its direction's band sum. Zero rows and zero overhang are exactly the layout without them.
  */
 export function layoutTrio(front: Rect2, side: Rect2, top: Rect2, extra: TrioRows = NO_ROWS): TrioLayout {
-  const right = extra.frontRight * DIM_ROW;
+  const right = extra.frontRight * DIM_ROW + (extra.overGap ?? 0);
   const below = Math.max(extra.frontBelow, extra.sideBelow) * DIM_ROW;
+  const overRight = extra.overRight ?? 0;
+  const overTop = extra.overTop ?? 0;
   const bands = 4 * DIM_BAND + VIEW_GAP;
   const across = w(front) + w(side);
   const down = h(top) + h(front);
-  const byW = across > 0 ? (PLAN_WIDTH - bands - right) / across : Infinity;
-  const byH = down > 0 ? (TRIO_MAX_HEIGHT - bands - below) / down : Infinity;
+  const byW = across > 0 ? (PLAN_WIDTH - bands - right - overRight) / across : Infinity;
+  const byH = down > 0 ? (TRIO_MAX_HEIGHT - bands - below - overTop) / down : Infinity;
   const scale = Math.min(byW, byH, MAX_PLAN_SCALE);
   const topAt = { x: DIM_BAND, y: DIM_BAND };
-  const frontAt = { x: DIM_BAND, y: DIM_BAND + h(top) * scale + DIM_BAND + VIEW_GAP + DIM_BAND };
+  const frontAt = { x: DIM_BAND, y: DIM_BAND + h(top) * scale + DIM_BAND + VIEW_GAP + DIM_BAND + overTop };
   const sideAt = { x: DIM_BAND + w(front) * scale + DIM_BAND + right + VIEW_GAP + DIM_BAND, y: frontAt.y };
   return {
     scale,
-    width: sideAt.x + w(side) * scale + DIM_BAND,
+    width: sideAt.x + w(side) * scale + DIM_BAND + overRight,
     height: frontAt.y + h(front) * scale + DIM_BAND + below,
     front: frontAt, side: sideAt, top: topAt,
   };

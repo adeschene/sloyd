@@ -96,39 +96,59 @@ type PlacedLines = ReturnType<typeof placedDimLines>;
 interface PlacedFit { lay: TrioLayout; frontH: Packed; frontV: Packed; sideH: Packed; notes: string[] }
 const rowsOf = (p: Packed) => p.reduce((n, x) => Math.max(n, x.row + 1), 0);
 
+/** Overhang room is reserved in steps of this many SVG units, so the fit below settles in finitely many passes. */
+const OVERHANG_STEP = 8;
+const FIT_PASSES = 64;
+const reserve = (held: number, asked: number) => (asked > 0 ? held + Math.ceil(asked / OVERHANG_STEP) * OVERHANG_STEP : held);
+
 /**
- * The trio's layout with room for its placed dimensions' rows (placed-dimensions spec §6.2), the ONE fit behind both
- * `PlanTrio` and `trioScale` (so the section block keeps the piece trio's scale): lay out, pack at that scale, lay out
- * again with the rows packing asked for, until it asks for no more. Each band's label room (Amended ruling 3) is its
- * view's outer edge plus DIM_BAND, the front's right edge plus the whole gap to the side view. Termination: the reserved
- * rows only ever grow (each pass keeps the larger of reserved and asked, per band) and each band is capped at
- * PLACED_ROWS_MAX (ruling 2), so at most 3·PLACED_ROWS_MAX passes grow it and the next one holds. On the pass that holds,
- * packing at the layout's own scale fits the rows it reserves. No lines: exactly `layoutTrio` without rows.
+ * The trio's layout with room for its placed dimensions (placed-dimensions spec §6.2), the ONE fit behind both `PlanTrio`
+ * and `trioScale` (so the section block keeps the piece trio's scale): lay out, pack at that scale, lay out again with what
+ * packing asked for, until it asks for no more.
+ * Each band's label room (Amended ruling 3), toward the next thing on the paper, rows and reserves included:
+ * - front-H: after `to`, the front–side gap up to the side's own left band; before `from`, the viewBox's left edge;
+ * - side-H: after `to`, the viewBox's right edge; before `from`, back to the side's left band;
+ * - front-V: after `to` (up), the whole plan–front gap; before `from` (down), the viewBox's bottom edge.
+ * A label fitting neither side overhangs past `to`, and the layout reserves that overhang (`overGap`, `overRight`,
+ * `overTop`), so no label is clipped.
+ * Termination: what is reserved only grows (rows keep the larger of reserved and asked, per band; an overhang adds whole
+ * OVERHANG_STEPs). Rows are capped at PLACED_ROWS_MAX (ruling 2). An overhang is bounded: labels are fixed width, and a
+ * smaller scale only shortens spans (it grows as the scale falls, never past `EXT_GAP + labelWidth` beyond its band at
+ * MAX_PLAN_SCALE). So finitely many passes grow anything, and the next one holds; on it, packing at the layout's own
+ * scale fits everything it reserves. No lines: exactly `layoutTrio` without rows.
  */
 export function fitPlaced(drawings: readonly [Drawing, Drawing, Drawing], lines: PlacedLines | null): PlacedFit {
   const [f, s, t] = drawings;
   if (!lines) return { lay: layoutTrio(f.bounds, s.bounds, t.bounds), frontH: [], frontV: [], sideH: [], notes: [] };
-  let rows = { frontBelow: 0, frontRight: 0, sideBelow: 0 };
-  for (;;) {
-    const lay = layoutTrio(f.bounds, s.bounds, t.bounds, rows);
+  let held = { frontBelow: 0, frontRight: 0, sideBelow: 0, overGap: 0, overRight: 0, overTop: 0 };
+  for (let pass = 1; ; pass++) {
+    const lay = layoutTrio(f.bounds, s.bounds, t.bounds, held);
     const sc = lay.scale;
-    const pack = (ls: readonly PlacedLine[], limit: number) => packPlaced(ls, sc, { limit, maxRows: PLACED_ROWS_MAX });
-    const fh = pack(lines.frontH, f.bounds.max[0] * sc + DIM_BAND + rows.frontRight * DIM_ROW + VIEW_GAP + DIM_BAND);
-    const fv = pack(lines.frontV, f.bounds.max[1] * sc + DIM_BAND);
-    const sh = pack(lines.sideH, s.bounds.max[0] * sc + DIM_BAND);
+    const pack = (ls: readonly PlacedLine[], lo: number, hi: number) => packPlaced(ls, sc, { lo, hi, maxRows: PLACED_ROWS_MAX });
+    const below = Math.max(held.frontBelow, held.sideBelow) * DIM_ROW;
+    // In each band's own scaled coordinates: SVG distances off the view's edge, the view's edge at `bounds·scale`.
+    const fh = pack(lines.frontH, f.bounds.min[0] * sc - DIM_BAND,
+      f.bounds.max[0] * sc + DIM_BAND + held.frontRight * DIM_ROW + held.overGap + VIEW_GAP);
+    const fv = pack(lines.frontV, f.bounds.min[1] * sc - DIM_BAND - below,
+      f.bounds.max[1] * sc + DIM_BAND + VIEW_GAP + DIM_BAND + held.overTop);
+    const sh = pack(lines.sideH, s.bounds.min[0] * sc - DIM_BAND, s.bounds.max[0] * sc + DIM_BAND + held.overRight);
     const next = {
-      frontBelow: Math.max(rows.frontBelow, rowsOf(fh.packed)),
-      frontRight: Math.max(rows.frontRight, rowsOf(fv.packed)),
-      sideBelow: Math.max(rows.sideBelow, rowsOf(sh.packed)),
+      frontBelow: Math.max(held.frontBelow, rowsOf(fh.packed)),
+      frontRight: Math.max(held.frontRight, rowsOf(fv.packed)),
+      sideBelow: Math.max(held.sideBelow, rowsOf(sh.packed)),
+      overGap: reserve(held.overGap, fh.overhang),
+      overRight: reserve(held.overRight, sh.overhang),
+      overTop: reserve(held.overTop, fv.overhang),
     };
-    if (next.frontBelow === rows.frontBelow && next.frontRight === rows.frontRight && next.sideBelow === rows.sideBelow) {
+    // FIT_PASSES only guards a render against a bug in the argument above; it is never reached.
+    if (pass >= FIT_PASSES || (Object.keys(next) as (keyof typeof next)[]).every((k) => next[k] === held[k])) {
       const notes = [
         noRoomNote(FRONT.title, [...fh.dropped.map((line) => ({ axis: 'X' as const, line })), ...fv.dropped.map((line) => ({ axis: 'Y' as const, line }))]),
         noRoomNote(SIDE.title, sh.dropped.map((line) => ({ axis: 'Z' as const, line }))),
       ].filter((n): n is string => n !== null);
       return { lay, frontH: fh.packed, frontV: fv.packed, sideH: sh.packed, notes };
     }
-    rows = next;
+    held = next;
   }
 }
 

@@ -381,8 +381,18 @@ Recorded by the build (2026-10-31). **Not yet approved by the user.**
    `Front: 2 placed dimensions not drawn — no room (Y 24, Y 30)` (`1 placed dimension …` singular; `noRoomNote` in
    `panels/planDims.ts`). With every band full the trio still has positive room, so the scale stays positive. `fitPlaced`
    keeps the larger of reserved and asked-for rows per band, so with the cap it settles within `3·6 + 1` passes.
-3. **Task 6 fix round (controller ruling): a past label with no room beyond its view's outer edge is drawn BEFORE `from`**,
-   end-anchored at `from − EXT_GAP`, and packed on that span, `[from·s − EXT_GAP − w, to·s]`. The room: side-H, its right
-   edge plus `DIM_BAND`; front-V, its top plus `DIM_BAND`; front-H, its right edge plus the whole gap to the side view,
-   `DIM_BAND + frontRight·DIM_ROW + VIEW_GAP + DIM_BAND`. Packing therefore sorts by the occupied START (`from·s` unless the
-   label is before it), then `from`, `to`, input order, which is ruling 1's order whenever no label is before.
+3. **Task 6 fix rounds 1–2 (controller rulings): a past label sits by ROOM, and is never clipped.** Room is measured toward
+   the next thing on the paper, rows and reserves included:
+   - front-H: after `to`, the front–side gap up to the side view's own left band; before `from`, the viewBox's left edge;
+   - side-H: after `to`, the viewBox's right edge; before `from`, back to the side view's left band;
+   - front-V: after `to` (up), the whole plan–front gap, `DIM_BAND + VIEW_GAP + DIM_BAND`; before `from` (down), the
+     viewBox's bottom edge, the rows below included.
+
+   The label goes just past `to` when it fits the room after; else just before `from` (end-anchored at `from − EXT_GAP`)
+   when it fits the room before; else past `to` all the same, and the layout RESERVES the overhang as extra margin on that
+   side (`layoutTrio`'s `overGap`, `overRight`, `overTop`, in whole steps of 8 units), so the viewBox grows and the scale's
+   band sums count it. Zero overhang is exactly the layout without it. Packing uses the occupied span, so a label before
+   `from` occupies `[from·s − EXT_GAP − w, to·s]`, and sorts by the occupied START, then `from`, `to`, input order (ruling 1's
+   order whenever no label is before). `fitPlaced` still terminates: rows and reserves only grow, rows are capped, and an
+   overhang is bounded (labels are fixed width; a falling scale only shortens spans). Round 1's fixed limits (`DIM_BAND`
+   above the front) flipped a 1-1/2" Y label at the front's top off the viewBox's bottom; this replaces them.
