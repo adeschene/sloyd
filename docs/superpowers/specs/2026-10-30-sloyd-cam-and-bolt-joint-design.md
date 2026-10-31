@@ -217,3 +217,73 @@ pine, walnut and plywood, after which `SnapMarker.tsx`' "owed the same live look
 
 The exact sentences in `camJointText.ts` (plain, naming parts with `displayNames`); the predicates behind refusal 6 and
 their order; where `holesZoneRefusal` lands; whether the panel's plan is memoised (it runs `holeFaults` per render).
+
+## Amended (build)
+
+Recorded by the build (Task 6, 2026-10-30). **Not yet approved by the user.** Rulings are from the SDD ledger
+(`.superpowers/sdd/2026-10-30-sloyd-cam-and-bolt-joint/progress.md`); each changes or settles text above.
+
+**Rulings**
+1. **R1 (Task 2; §3.4 check 4): the same-storage-target test uses two users of one Shape** (linked parts at the root), not two placements of
+   one definition: the definition case refuses at the containers check (3) first and is unreachable at check 4. Cost if wrong: one test reworked.
+2. **R2 (Task 3; §3.2, §4): `camFaceOptions` returns exactly two `{ from, label }` entries** (no default flag); the default comes from
+   `defaultCamFrom`. The plan's doc line was garbled. Cost if wrong: a panel prop reshaped.
+3. **R3 (Task 3; §3.3): for the right side after the left joint is applied** the plan reads `reused.a === false` (the shelf's OTHER end has no
+   pair), `reused.b === 1` (the side's bore arrived through the mirrored link) and the shelf's write adds only its cam rows; it is not
+   `CAM_JOINT_ALREADY`. A second test applies both and re-plans the right: `CAM_JOINT_ALREADY`. Cost if wrong: test expectations reworked.
+4. **R4 (Task 2; §3.4 check 6): the end-features refusal refuses only what changes A's END itself**: a round tenon, a dovetail or box-joint
+   fingers at that end, an END angle cut (miter, bevel or taper of the end face), a curve whose outline reaches the end face, a profile running
+   along one of the end face's own edges. A profile or chamfer along a LONG edge that merely runs out through the end face does not refuse;
+   `holeFaults` decides any real clash (a roundover on a shelf's front edge is the common case, and the cam sits 37 mm in). Cost if wrong: a cam
+   lock offered on a part whose long-edge profile does meet a bore, which `holeFaults` still refuses if they intersect.
+5. **R5 (Task 2; check 6): edge banding (any side, the end included) does not refuse.** The model is the finished size (inv 54) and the bores
+   are judged on it. Cost if wrong: a bolt bore through an end band; a one-line refusal later.
+6. **R6 (Task 2; §3.4 check 7): check 7's refusals (count, thin, on-edge, two locks, partial, already) are decided in Task 3's planner**, not in
+   `findCamJoint`: they need the count, face or layout. Their sentences were written in Task 2. Cost if wrong: none.
+7. **R7 (Task 2; text): `camJointReused(1)` reads "1 fitting"** (grammar over the brief's literal). Cost if wrong: a word.
+8. **R8 (Task 2; §3.1): more than one joint candidate refuses with `CAM_JOINT_NONE` instead of throwing.** Degenerate parts at or below
+   2·`TOUCH` can reach it, and a throw in the panel's render would white-screen the app. Cost if wrong: a misleading "no joint" on a sliver part.
+9. **R9 (Task 2; §3.4 check 4): the `holesKey` storage-target rule** (`shape:<id>` for a Shape user, else `part:<storageKey ?? id>`) replaces plain
+   `storageKey`: plain `storageKey` never matches two linked root parts. Cost if wrong: none found.
+10. **R10 (Task 3; §3.4 check 7): check 7 runs two locks, partial, count, on-edge, thin, already, in that order.** Reuse is decided before the
+    count because a reused pair ignores the typed count (§3.3); on-edge before thin is `defaultCamLock`'s own order. Cost if wrong: a different
+    sentence first when two refusals apply.
+11. **R11 (Task 3; §6): "coaxial on every turn of B"** uses the 3/4" side at 90/270, a 12" × 12" post at all four turns and an on-edge side: at
+    0/180 the plain side's width lies on X and no joint exists. Cost if wrong: none (each variant asserts the plan was found).
+12. **R12 (Task 3; §6, inv 44): the mirrored-link fixture is hand-built** (a Shape with the right side at turn 270, `mirrored: true`, a chiral
+    hole) because `linkByRole` links identical sides as plain users. Cost if wrong: a fixture reworked.
+13. **R13 (Task 3; §3.2): B's new bores are judged with `holeFaults(…, { camPairs: false })`** (inv 50's planner rule): stricter, never looser.
+    Cost if wrong: none observable.
+14. **R14 (Task 3, 4, 5; §3.2): the planner's three "caller bug" throws stay, but neither the panel nor the store lets one escape.** The
+    section's memo and `addCamJoint` catch a throw from `camJointPlan` and treat it as no plan (the panel hides its section; the store returns
+    null and writes nothing), logging it with `console.error`. Cost if wrong: a silent no-op on a geometry bug instead of a crash.
+15. **R15 (Task 5; §4): the joint line names A's end as the Holes panel does** (`min end` / `max end`, A's own frame), not by world direction,
+    consistent with the Cam lock preset labels; a copy review may move both to world words (fu 606). Cost if wrong: one wording change in two places.
+16. **R16 (Task 5; §6): the panel's link-notes test stubs the store's return** (wiring only); real link notes are proved in
+    `store.camJoint.test.ts` and `camJoint.plan.test.ts`. Cost if wrong: none.
+17. **R17 (final review; §3.2, §3.4 check 7): a typed count of 2 or more on an A whose span along the row is at most 2 × 37 mm refuses with
+    `CAM_JOINT_NARROW`** (a new too-narrow sentence naming A and the count), decided in the planner after on-edge and before
+    `defaultCamLock` (so before thin), never as a null from it (which reads as `CAM_JOINT_THIN`). `defaultCamLock` would lay out a zero or
+    negative pitch, which `holeFaults` passes but `migrateDocument` drops, so the pair vanished on reload. A round-trip guard in
+    `camJoint.plan.test.ts`' apply helper reloads every applied plan (`migrateDocument` after a JSON round trip) and requires every row kept.
+    Cost if wrong: none (the loader would drop those rows).
+18. **R18 (final review; §3.2, §3.5; the spec is silent, the controller's call, flagged to the user): when the trial write gives ANOTHER
+    world part (a link or copy co-user of B) a new bore whose mouth does not lie against some other world part's box (within `TOUCH`), the
+    plan refuses with `CAM_JOINT_BARE_FACE`, naming that part**: its bore would open onto a bare face (the outside of a carcass side whose
+    link is a plain copy). Only B's bores, only on parts other than the two selected; a correctly mirrored link puts the co-user's bore on
+    its inner face, against the shelf, and passes (R3, R12). Cost if wrong: refuses a linked layout where the copy's mating part is not
+    placed yet (place it first), or the user may prefer a warning note instead.
+
+**Differences from the spec as written**
+- **`holesZoneRefusal` was not moved** (§5, §7). It stays in `store.ts`; `addCamJoint` calls it on each written part before `edit()`, as
+  `addStretcher` does. Cost if wrong: a refactor later.
+- **There is no AMBIGUOUS sentence** (§3.1, §3.4): many candidates refuse as none (R8), with `CAM_JOINT_NONE`.
+- **The `holesKey` storage rule** (R9) is the check-4 mechanism, in place of plain `storageKey`.
+- **Refusal 6 is narrowed** (R4, R5): it names what changes A's end, not every feature that touches the end's region; banding never refuses.
+- **Check 7's order** is R10's, not the order §3.4 lists, with R17's narrow refusal between on-edge and thin.
+- **Two refusals the spec does not list** (R17, R18): too narrow for the typed count, and a linked bore opening onto a bare face.
+- **The throw guards** (R14): the panel and the store catch the planner's caller-bug throws.
+- **Not done, recorded:** Fit again (fu 602), dowels (fu 603), the B-bore recogniser (fu 604), the joint as support in the checks (fu 605), world
+  end words (fu 606), the build's minors (fu 607). Hardware from a pair stays fu 600.
+- **The browser check** (`docs/browser-verification-cam-and-bolt-joint.md`) is written and pending; fu 590's snap-marker hues ride along, after
+  which `SnapMarker.tsx`' "owed the same live look" sentence is updated.

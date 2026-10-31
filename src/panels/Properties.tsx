@@ -15,6 +15,7 @@ import { RoundTenons } from './RoundTenons';
 import { Lean } from './Lean';
 import { BoxJointsSection } from './BoxJoints';
 import { DovetailsPart, DovetailsSection } from './Dovetails';
+import { CamJointSection } from './CamJoint';
 import { StretcherReadout, StretcherSection } from './Stretcher';
 import type { AddedStretcher } from './Stretcher';
 import { Curves } from './Curves';
@@ -548,6 +549,8 @@ function GroupProperties({ library, onNewMaterial, onNewBandType, onStretcherAdd
       {boards.length >= 2 && <BoxJointsSection ids={selectedIds} />}
       {/* Dovetails spec §4: beside Box joints, two or more parts. */}
       {boards.length >= 2 && <DovetailsSection ids={selectedIds} />}
+      {/* Cam-and-bolt joint spec §4: exactly two parts. */}
+      {boards.length === 2 && <CamJointSection ids={[boards[0]!.id, boards[1]!.id]} />}
       <Banding boards={boards} onNewBandType={onNewBandType} />
       </>}
       </EditLock>
