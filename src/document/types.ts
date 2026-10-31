@@ -2,6 +2,7 @@
 import type { OwnField, SharedField } from './links';
 import type { Units } from '../units/length';
 import type { Section } from './section';
+import type { Point } from './cuts';
 
 /** Degrees about the vertical axis, counter-clockwise seen from above, applied after posture. */
 export type Rotation = 0 | 90 | 180 | 270;
@@ -383,6 +384,30 @@ export interface GuideRay {
   axis?: undefined;
 }
 
+/** One coordinate of a box-lattice anchor: 0, half or all of the part's own dimension (placed-dimensions spec §2). */
+export type DimFrac = 0 | 0.5 | 1;
+
+/**
+ * Where one end of a placed dimension sits (placed-dimensions spec §2). `part` is a flat path id, a HINT resolved at read time:
+ * never repaired or dropped on load (spec §2.3; the `views[].hidden` exception to inv 33).
+ */
+export type DimAnchor =
+  /** A box-lattice point of a part: each of the part's OWN dimensions at 0, ½ or 1 of it. */
+  | { part: string; frac: Record<Dimension, DimFrac> }
+  /** Any other point on a part, in the part's own space, inches from its min corner. */
+  | { part: string; local: Point }
+  /** A fixed world point, inches (a guide point, a line, a crossing, a stepped offset). */
+  | { at: [number, number, number] };
+
+/** A dimension the user placed (schema 33, spec §2). Its value is never stored: `|resolve(b)[axis] − resolve(a)[axis]|`. */
+export interface PlacedDimension {
+  id: string;
+  a: DimAnchor;
+  b: DimAnchor;
+  /** The world axis the dimension measures along. */
+  axis: TapeAxis;
+}
+
 export type Guide = GuidePoint | GuideLine | GuideRay;
 export type AnyLine = GuideLine | GuideRay;
 
@@ -485,6 +510,8 @@ export interface SloydDocument {
   guides: Guide[];
   /** Saved views (schema 29), in the order the user sees. */
   views: SavedView[];
+  /** Placed dimensions (schema 33, placed-dimensions spec §2), in the order kept. */
+  dimensions: PlacedDimension[];
   boards: StoredBoard[];
   /** The root's assemblies. The root is an implicit definition (spec §2). */
   instances: Instance[];

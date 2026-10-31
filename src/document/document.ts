@@ -1,7 +1,7 @@
 import { validateCustomMaterials, pruneMaterials, BUILT_IN_MATERIAL_IDS } from './materials';
 import { DEFAULT_MATERIAL, DEFAULT_KERF, isSheetGood } from './types';
 import type {
-  Board, Instance, Definition, Cut, AngleCut, RoundTenon, Dovetail, AngleKind, HoleRow, CurveCut, CurveSegment, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, FlatDocument, Guide, GuidePoint, SavedView, SavedViewCamera,
+  Board, Instance, Definition, Cut, AngleCut, RoundTenon, Dovetail, AngleKind, HoleRow, CurveCut, CurveSegment, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, FlatDocument, Guide, GuidePoint, SavedView, SavedViewCamera, DimAnchor, DimFrac, PlacedDimension,
   Shape, StoredBoard, ProfileCut, ProfileEnd, ProfileKind, ProfileSide, BandType, Band, CornerRule, HardwareType, HardwareUse, Lean,
 } from './types';
 import type { SharedField } from './links';
@@ -269,8 +269,13 @@ export type { Section, SectionAxis, SectionCap } from './section';
  * an entry whose `to` is malformed, equal to `at`, or beside an `axis`, and loads a `to` that makes the line axis-parallel as the
  * canonical axis line. Harm a v31 build would do: it reads an entry with no `axis` as a guide point and keeps it at `at`, so the
  * oblique line is lost on the next autosave and a stray point is left behind. So a v32 file must be refused by a v31 build.
+ *
+ * v33 (placed-dimensions spec §2): `dimensions: PlacedDimension[]` on the document. No step: an absent field loads as `[]`;
+ * `validateDimensions` drops a malformed entry, repairs ids, and never touches a `part` reference. Harm a v32 build would do: it
+ * rebuilds the document as a literal of known fields, so `dimensions` is dropped and the next autosave writes the project
+ * without them — every placed dimension silently lost. So a v33 file must be refused by a v32 build.
  */
-export const CURRENT_VERSION = 32;
+export const CURRENT_VERSION = 33;
 
 export class DocumentError extends Error {
   /**
@@ -378,6 +383,7 @@ export function createDocument(name = 'Untitled'): FlatDocument {
     stock: { kerf: DEFAULT_KERF },
     guides: [],
     views: [],
+    dimensions: [],
     boards: [],
     instances: [],
     definitions: [],
@@ -1014,6 +1020,56 @@ export function validateViews(raw: unknown): SavedView[] {
   return views;
 }
 
+const DIM_FRACS: readonly unknown[] = [0, 0.5, 1];
+const DIM_KEYS: readonly Dimension[] = ['length', 'width', 'thickness'];
+
+/** A record with exactly the three dimension keys, each passing `ok`; null when it is anything else. */
+function dimRecord<T>(raw: unknown, ok: (v: unknown) => boolean): Record<Dimension, T> | null {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  return DIM_KEYS.every((k) => ok(r[k])) ? { length: r.length as T, width: r.width as T, thickness: r.thickness as T } : null;
+}
+
+/** One anchor: exactly one of the three shapes, or null. An object carrying both `frac` and `local` is malformed. */
+function validAnchor(raw: unknown): DimAnchor | null {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
+  const a = raw as Record<string, unknown>;
+  if ('part' in a) {
+    if (typeof a.part !== 'string' || 'at' in a || ('frac' in a) === ('local' in a)) return null;
+    if ('frac' in a) {
+      const frac = dimRecord<DimFrac>(a.frac, (v) => DIM_FRACS.includes(v));
+      return frac ? { part: a.part, frac } : null;
+    }
+    const local = dimRecord<number>(a.local, (v) => typeof v === 'number' && Number.isFinite(v));
+    return local ? { part: a.part, local } : null;
+  }
+  if ('frac' in a || 'local' in a) return null;
+  const at = finite3(a.at);
+  return at ? { at } : null;
+}
+
+/**
+ * Placed dimensions (schema 33, spec §2.3). Drops a malformed entry (a non-string id, an axis other than x/y/z, an anchor that is
+ * none of the three shapes, a `frac` other than 0, 0.5 or 1, a non-finite number); ids by `takeId` in their own scope. A
+ * well-formed entry is KEPT even when its part is gone: `part` is a hint resolved at read time, never repaired (inv 33).
+ */
+export function validateDimensions(raw: unknown): PlacedDimension[] {
+  if (!Array.isArray(raw)) return [];
+  const out: PlacedDimension[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    if (typeof item !== 'object' || item === null) continue;
+    const e = item as Record<string, unknown>;
+    if (typeof e.id !== 'string') continue;
+    if (e.axis !== 'x' && e.axis !== 'y' && e.axis !== 'z') continue;
+    const a = validAnchor(e.a);
+    const b = validAnchor(e.b);
+    if (!a || !b) continue;
+    out.push({ id: takeId(e.id, seen), a, b, axis: e.axis });
+  }
+  return out;
+}
+
 /** A raw position, or null when it is not three finite numbers. */
 function validPosition(pos: unknown): [number, number, number] | null {
   if (!Array.isArray(pos) || pos.length !== 3 || !pos.every((n) => typeof n === 'number' && Number.isFinite(n))) return null;
@@ -1407,6 +1463,7 @@ export function migrateDocument(raw: unknown): SloydDocument {
     stock: { kerf },
     guides,
     views: validateViews(d.views),
+    dimensions: validateDimensions(d.dimensions),
     boards,
     instances,
     definitions,

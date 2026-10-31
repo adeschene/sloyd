@@ -7,8 +7,8 @@ const load = (guides: unknown[]) => migrateDocument({ ...createDocument('T'), ve
 
 describe('schema 32: oblique lines (construction-lines-2 spec §2.3)', () => {
   it('is version 32 and refuses 33', () => {
-    expect(CURRENT_VERSION).toBe(32);
-    expect(() => migrateDocument({ ...createDocument('T'), version: 33 })).toThrow(/newer version of Sloyd/);
+    expect(CURRENT_VERSION).toBe(33);
+    expect(() => migrateDocument({ ...createDocument('T'), version: 34 })).toThrow(/newer version of Sloyd/);
   });
 
   it('keeps an oblique line exactly', () => {
