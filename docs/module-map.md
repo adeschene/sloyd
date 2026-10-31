@@ -511,6 +511,13 @@ src/
 │   │                     `dovetailedDrawer` (dovetailPlan's drawer, planned) and `placedChiral`; every number dyadic
 │   ├── views.ts          saved views (saved views spec §2): `rekeyViews(doc, rekey, lift)` applies an edit's item-path re-key (and a dissolved
 │   │                     assembly's `lift`) to every view's `hidden`, in the SAME edit as the live `hiddenIds`; `validateViews` is in document.ts (schema 29)
+│   ├── placedDims.ts     THE placed-dimensions home (inv 65, fu 253): `resolveAnchor` (the ONE anchor→world reader; `frac` scales the part's CURRENT
+│   │                     `geometryBoard` size, `local` keeps its station, both through `toWorld`; a missing part → null = detached), `anchorFor` (the ONE
+│   │                     snap point→anchor converter, by geometry within `DIM_EPS`; `DimAnchor | null`, null for a board point whose part is gone),
+│   │                     `dimensionValue`, `dimensionAxis` (D's decider: the locked axis, else the one differing axis, else the 'Lock an axis' refusal;
+│   │                     also refuses a level pair, `The two points are level along X.`; `App`'s D handler shows either as the tape notice), `rekeyDimensions` (Group/Ungroup, same edit as `rekeyViews`), `placedDimLines` (the sheet's
+│   │                     per-view lines `{ id, from, to, a, b, label }`, the label assembled HERE, inv 19) and `detachedNote`. → units (`formatLengthBare`,
+│   │                     for the sheet's labels alone). `validateDimensions` is in document.ts (schema 33)
 │   ├── labels.ts         THE part-label home (part labels): LABEL_STOCKS (Avery 5160/5163, L7160/L7163, exact geometry), defaultStock,
 │   │                     stockCells, cellBox, labelsOf (one PartLabel per piece, from buildCutList), pagesOf (startAt) (→ units)
 │   ├── weight.ts         THE weight home (inv 63): woodVolume (boardBodies volumes, memoised on PartGeometry), stripVolume, coreWeight,
@@ -691,7 +698,7 @@ src/
 │                     generate/, because they own React state and storage writes (moved from CLAUDE.md's layer order, 2026-10-30)
 ├── viewport/         NO unit tests by design. Viewport (its StretchGuide: the stretch line's translucent plane, inv 64 — no raycast, no depth
 │                     write, no clipping plane), BoardMesh (inv 21), MoveTool +
-│                     moveCandidates, TapeTool, Gizmo (invs 3, 10, 42; dragTarget rounds a leaning part's DELTA, the handle at partBounds' centre, inv 57) + gizmoPatch.ts (the flip fix and size ceiling, tested), GuideMarkers, GuideLines (construction lines),
+│                     moveCandidates, TapeTool, Gizmo (invs 3, 10, 42; dragTarget rounds a leaning part's DELTA, the handle at partBounds' centre, inv 57) + gizmoPatch.ts (the flip fix and size ceiling, tested), GuideMarkers, GuideLines (construction lines), PlacedDims (inv 65: placed dimensions in the viewport — segment A to A′, dashed leg, ticks, a drei `Html` label, `--dim-placed`; mounted under `explode === 0 && !clean`, no raycast, not a snap source, skips detached and hidden-part dimensions; hover from the list),
 │                     GuidePicker (fu 591: the Select tool's guide click, below), projector.ts (`projectorFor`, `ndcDepth`: the ONE
 │                     world→canvas projector of MoveTool, TapeTool and GuidePicker, so their depths share one scale),
 │                     SnapMarker (`SNAP_COLORS`: the colour floors are TESTED, `snapColors.test.ts`; method `docs/snap-hues/`), snapPick (screen-space nearest, on purpose), grain*.ts,
@@ -747,9 +754,9 @@ src/
 │                     writes nothing untouched; one `setBands`, one undo entry) on bandingRefusal.ts (bandEditRefusal: an ADDED band
 │                     fault on any selected part; bandsShownCorner),
 │                     ViewportControls (tools/view over the canvas), ActionBar (three actions, More ▾,
-│                     trash), GuidesFooter (opens itself when the guide count goes up or a guide becomes selected, fu 591; never closes itself), EyeIcon (the eye shared by PartsList and GuidesList), ViewsFooter / ViewsList (saved views spec §6: `Views · N`, Save view, one row per view with go-to, a `NameField` rename, Update, ×; NOT inside EditLock, inv 47 carve-out; Save view focuses the new row's name once), AlignSection (the multi-selection panel's Align: nine buttons, Space evenly with 3+, the anchor named), StretchSection (inv 64: Overall size in the assembly and multi-selection panels, inside EditLock: three extent fields, typing arms one axis (nothing on blur), Stretch at from the min face with Middle, the stretchPlan preview or its refusal as a field-error, Stretch / Cancel; sets the stretch guide), LabelsSheet (part labels: true-size
+│                     trash), GuidesFooter (opens itself when the guide count goes up or a guide becomes selected, fu 591; never closes itself), EyeIcon (the eye shared by PartsList and GuidesList), DimensionsFooter / DimensionsList (placed dimensions spec §5, inv 65: `Dimensions · N`, the GuidesFooter pattern, shown only when N > 0, opens itself when the count rises; one row per dimension `X 23 1/2"  <part> to <part>`, `(part deleted)` / `(hidden)`, an end without a name `a deleted part`, hover sets `hoveredDimension`, ✕ is `removeDimension`; the list sits inside EditLock), ViewsFooter / ViewsList (saved views spec §6: `Views · N`, Save view, one row per view with go-to, a `NameField` rename, Update, ×; NOT inside EditLock, inv 47 carve-out; Save view focuses the new row's name once), AlignSection (the multi-selection panel's Align: nine buttons, Space evenly with 3+, the anchor named), StretchSection (inv 64: Overall size in the assembly and multi-selection panels, inside EditLock: three extent fields, typing arms one axis (nothing on blur), Stretch at from the min face with Middle, the stretchPlan preview or its refusal as a field-error, Stretch / Cancel; sets the stretch guide), LabelsSheet (part labels: true-size
 │                     sticker pages, Stock, Start at; opened from the cut list in its place), PlansSheet / PlanFigure /
-│                     planLayout / planDims (the Plans sheet: figures, one-scale third-angle layout, dimension fitting;
+│                     planLayout / planDims (the Plans sheet: figures, one-scale third-angle layout, dimension fitting; placed dimensions, inv 65: `planDims.ts` `packPlaced` packs a view's placed lines into rows by occupied span (`PlacedLabel` centre / past / before, chosen by ROOM), `noRoomNote` and `offDrawingNote` say what is not drawn; `planLayout.ts` `PLACED_ROWS_MAX` (6 rows per band) and `TrioRows` (`layoutTrio`'s rows and `overGap` / `overRight` / `overTop` reserves), `trioScale(parts, bandTypes, placed?, units?)`; PlanFigure's `fitPlaced` re-packs at each new scale until the row counts hold;
 │                     PlanFigure's `pathOf` chains a segment into the previous subpath only when its start meets the previous
 │                     end AND it is the same part, so a hidden rim dashes continuously); PartDiagram draws hole ellipses
 │                     (rx = r·sx, ry = r·sy), centre crosses, dashed sides and the hole notes (keyed by row); a tilted bore's
@@ -846,7 +853,7 @@ The rule is `CLAUDE.md`'s ("a module imports `units` when it produces a string a
 this list moved from there on 2026-10-29, its content unchanged (regrouped into three bullets).
 
 - **Take it:** `cutlist.ts`, `diagram.ts`, `nesting.ts` (`formatLength`, so one dimension never reads two ways on one sheet) and
-  `viewport/TapeTool.tsx` (`parseLength`, for the live preview), and so do `designCheck.ts` (a metric violation's `shown` copy,
+  `viewport/TapeTool.tsx` (`parseLength`, for the live preview), and `placedDims.ts` (`placedDimLines`' sheet labels, `formatLengthBare`; inv 65), and so do `designCheck.ts` (a metric violation's `shown` copy,
   fu 355; its model `message` stays decimal inches), `sectionView.ts` (the section's heading), `dovetailBench.ts` (the bench
   drawings' strings, `formatLengthBare`), and the copy homes `bandText.ts`, `tenonText.ts`, `stretcherText.ts`, `boxJointText.ts`,
   `cornerText.ts`, `dovetailText.ts` and `stretchText.ts`, and `labels.ts` (part labels' strings) (`banding.ts` and
@@ -858,6 +865,10 @@ this list moved from there on 2026-10-29, its content unchanged (regrouped into 
   ground grid's ladder is a display choice of the project's units, not a string).
 
 ## Per-file rules not covered by an invariant
+
+**Test-only modules** (never import one from a module: it re-registers its suite): `treeFixtures.ts`, `turnFixtures.ts`, `curveFixtures.ts`,
+`sweepFixtures.ts`, `meshCases.ts`, `shakerTableFixture.ts`, `stoolFixture.ts`, `holesSquareCases.ts` (with `holesSquare.snapshot.json`),
+`dovetailFixtures.ts`, `stretchFixtures.ts`, `camBoltFixtures.ts`, `camJointFixtures.ts` (moved here from `CLAUDE.md` 2026-10-31).
 
 Moved from `CLAUDE.md` on 2026-10-26, verbatim except that its pointers to this file now read "the tree" (the
 annotated tree above); `CLAUDE.md` lists the files. Each is a rule (the invariants are in `docs/invariants.md`).

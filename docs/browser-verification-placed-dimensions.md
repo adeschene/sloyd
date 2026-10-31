@@ -1,0 +1,35 @@
+# Browser verification — placed dimensions (fu 253, schema 33)
+
+NOT YET RUN. To be run in the user's Chrome: Claude drives it through claude-in-chrome on the dev server (a MobaXterm tunnel to
+`localhost:5199`, branch `placed-dims`); real clicks and keys for every action, results read off the page's own store module. Test
+projects are LEFT in place on dev (the dev profile rule); never clear the dev profile. Spec:
+`docs/superpowers/specs/2026-10-31-sloyd-placed-dimensions-design.md` (§3, §4, §5, §6, §10) and its Amended (build) block. DOM readouts
+quoted below are the words from `src/document/placedDims.ts`, `src/panels/DimensionsList.tsx`, `src/panels/TapeReadout.tsx` and
+`src/panels/planDims.ts`. Production is verified by loading the page only (CLAUDE.md's deployment rule); nothing here runs there.
+
+Setup: a project named `Placed dimensions check`: a carcass (two sides 3/4" thick, 12" deep, 30" tall, 24" apart outside to outside) with a
+shelf 3/4 × 12 × 22-1/2" between them at 10" high, and a top 3/4 × 12 × 24" on the sides. The Tape tool (T), snap points on corners.
+Units imperial unless the check says metric.
+
+| # | Check | Steps | Expected | Result |
+|---|---|---|---|---|
+| 1 | Keep an X, a Y and a Z dimension | Tape: click the shelf's near-left-bottom corner, hover its near-right-bottom corner, press D. Then the shelf's bottom face to the floor corner with Y locked (press Y), D. Then the shelf's front-bottom corner to its back-bottom corner with Z locked, D | Three `Dimensions · 3` rows (the footer opens itself): `X 22 1/2"`, `Y 10"`, `Z 12"` (the axis, value, then the two part names). Each press is ONE undo entry (store `past` grows by 1). The tape's anchor and hover stay held after each D. Each dimension draws in the viewport: segment, ticks and the label at its midpoint | |
+| 2 | The oblique refusal, then X locked | Anchor the shelf's bottom-left-front corner, hover the top's far-right-top corner (differs on three axes). Press D | The readout shows `Lock an axis (X, Y or Z) to keep a dimension.`; nothing is added (`past` unchanged). Press X, then D: an X dimension is added. Move the hover (the refusal notice goes away by itself) | |
+| 3 | Resize and the dimension follows | Select the shelf, change its Length from 22-1/2" to 20". Read the X dimension's list row and viewport label. Then do the same to a dimension anchored on a hole centre or a cut corner (see 5) | The corner-to-corner X dimension reads `X 20"` (a `frac` anchor follows the resize); a `local` anchor keeps its station from the min corner | |
+| 4 | Turn and move the part | Move the shelf up 2" with the gizmo; Turn it 90°; undo both | The dimensions follow their anchors (moves and turns move them with the part); a dimension between two points on the shelf keeps its value under a move; one from the shelf to a side re-measures. Each keeps its stored axis. Undo restores each | |
+| 5 | A dimension to a hole centre | Add a hole row near a shelf end (Holes section), Tape from the hole centre to the shelf's end face, X locked, D | A dimension is kept; resizing the shelf's Length keeps the hole at its station and the dimension reads the new distance (the hole centre is a `local` anchor) | |
+| 6 | Delete the part, see the detached row, undo | Delete the shelf. Read the Dimensions list. Ctrl+Z | The shelf's dimensions stay listed and read `(part deleted)` with `a deleted part` as the missing end; they draw nowhere in the viewport; ✕ still deletes one (ONE undo entry). Ctrl+Z restores the shelf and the dimensions re-attach with their values | |
+| 7 | Group and Ungroup | Select the shelf and one side, Group; read the dimension values; Ungroup; read again | The same values after each, and after the round trip; no detached row | |
+| 8 | The Plans sheet | Open Plans. Read the piece trio. Keep several overlapping Y dimensions from the floor (shelf heights 10", 20", 30"), and one whose label is wider than its span (a 1/2" X dimension) | Placed dimensions print in the Front (X, Y) and Side (Z) views beyond the automatic overall dimension, in rows; non-overlapping ones share a row; the 1/2" label sits past its span, never dropped; a detached one is not printed and a note under the trio reads `1 placed dimension not drawn — its part was deleted`. A sheet with no placed dimensions looks as it did before. Use the browser's print preview (Ctrl+P) | |
+| 9 | Metric | Switch the project to metric. Read the list, viewport label and sheet | Values read whole mm (`X 572 mm` in the list; bare numbers on the sheet under the one `Dimensions in mm` note) | |
+| 10 | Hidden | Hide the shelf (eye in the Parts list). Read the list and viewport; open Plans | The row reads `(hidden)`; the dimension is not drawn in the viewport; the sheet still prints it | |
+| 11 | Exploded | Turn Explode on | No placed dimension is drawn in the viewport; the Dimensions list ✕ is disabled; the Tape tool is unavailable | |
+| 12 | Reload (autosave) | Reload the page | The project opens with the same dimensions, in the same order, same values; the footer shows `Dimensions · N`; undo history is empty as usual | |
+| 13 | The dimension colour, by eye | Look at a placed dimension on a part, over the grid and next to a construction line, a tape reading and the snap markers; hover its row in the list | `--dim-placed` (`#e0793a`) reads as distinct from guides and the tape, in both light and dark themes; the hovered dimension is emphasised. The user judges; no scripted pixel check | |
+| 14 | Key tags against placed rows | On the sheet with several placed rows (check 8), turn on the piece's key tags (fu 625) | Note whether a key tag sits on a placed row or label. Key tags do not avoid placed rows (a known minor); record where | |
+| 15 | The 6-row cap note | Keep seven overlapping Y dimensions from the floor (7 different heights, all `from` = 0). Read the sheet's notes under the Front view | Six rows print; the figure's notes read `Front: 1 placed dimension not drawn — no room (Y …)` naming the seventh. The scale stays positive (the figure is not collapsed) | |
+| 16 | An off-drawing dimension | Place a guide point well outside the piece (e.g. 20" beyond the top), keep a dimension from a part corner to it with Y locked; open Plans | The list and viewport show it; the sheet does not draw it, and the notes read `Front: 1 placed dimension not drawn — it reaches past the drawing (Y …)` | |
+| 17 | A label placed before `from` | Keep a dimension starting at the front view's top or outer edge with a long label (e.g. a 1-1/2" Y dimension at the top of the piece, and a Z dimension at the side view's right edge), open Plans | The label sits before `from` or overhangs with the viewBox reserved; no label is clipped at the figure's edge. Also look for a front-H and a front-V label meeting at the front view's corner (fu 626) | |
+| 18 | Console | Read the console after every check | No errors or warnings | |
+
+After the run: fill the Result column, one line each; list anything found and fixed; the Amended (build) block in the spec awaits approval.

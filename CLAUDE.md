@@ -107,7 +107,7 @@ would be a second implementation, not a parallel path.
 ### Versioning
 
 Every load path (open, import, autosave-restore) runs `migrateDocument` before the
-document is trusted. `CURRENT_VERSION` is **32** (oblique lines: a guide's `to`; each earlier step: `docs/versioning.md`). Steps run one version at a time, in
+document is trusted. `CURRENT_VERSION` is **33** (placed dimensions: `dimensions`; each earlier step: `docs/versioning.md`). Steps run one version at a time, in
 order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11→v12, which run after.
 The step table — what each step adds, validates, drops and refuses, and the harm a build one version back
 would do — is `docs/versioning.md`; update it
@@ -156,6 +156,7 @@ or its role changes. Where a file's own doc comment is the stated single source 
 | stretch (parametric resize) | `stretch.ts` `stretchPlan`, `stretchPart.ts`, `cuts.ts` `stretchCut`, `stretchText.ts`; `panels/StretchSection.tsx` (inv 64) |
 | part labels | `labels.ts` (strings, sticker geometry), `panels/LabelsSheet.tsx` |
 | construction lines | `lineModel.ts`, `snapPoints.ts` (`lineCrossings`, `heldRoot`/`heldBoard`), `lineFaces.ts`, `snapPick.ts`, `GuideLines.tsx`, `GuidePicker.tsx`, `visibleGuides`, store `moveGuideLine`, `planLines.ts` (invs 24, 25) |
+| placed dimensions | `placedDims.ts`, `PlacedDims.tsx`, `DimensionsList.tsx`, sheet rows `planDims.ts` `packPlaced` (inv 65) |
 | saved views | `document/views.ts`, `viewCamera.ts`, `ViewsFooter.tsx` (invs 43, 47) |
 | weight | `weight.ts`; density on the catalog (`MATERIALS`, `CustomMaterial.density`); text `units/quantity.ts` (inv 63) |
 | drawings | `drawing.ts` `drawView` (inv 47), `plans.ts`, `section.ts` (inv 51) |
@@ -166,8 +167,7 @@ or its role changes. Where a file's own doc comment is the stated single source 
 | viewport | `viewport/` — NO unit tests by design except the pure helpers and perf/watertight guards |
 | panels | `panels/` — one section per feature, each over a pure refusal module |
 
-**Test-only modules** (never import a test module — it re-registers its suite): `treeFixtures.ts`,
-`turnFixtures.ts`, `curveFixtures.ts`, `sweepFixtures.ts`, `meshCases.ts`, `shakerTableFixture.ts`, `stoolFixture.ts`, `holesSquareCases.ts` (with `holesSquare.snapshot.json`), `dovetailFixtures.ts`, `stretchFixtures.ts`, `camBoltFixtures.ts`, `camJointFixtures.ts`.
+**Test-only modules** (never import a test module — it re-registers its suite): the `*Fixtures.ts`, `meshCases.ts` and `holesSquareCases.ts` files; the list is in `docs/module-map.md`.
 
 ### Per-file rules not covered by an invariant
 
@@ -308,7 +308,7 @@ changes.
     `docs/invariants.md`. `/` in an id is re-minted. A guide with no id is dropped; a construction line (axis or oblique) shares `guides`' scope.
     References (`Instance.definition`, `ShapedBoard.shape`) are resolved by DROPPING the
     duplicate or the dangling part, never by re-minting. A future field pointing at a board by id
-    breaks the single-pass repair — except `views[].hidden`, a hint never repaired (skipped when missing; Group/Ungroup re-key it).
+    breaks the single-pass repair — except `views[].hidden`, a hint never repaired (skipped when missing; Group/Ungroup re-key it), and so is a placed dimension's `part` (inv 65).
 34. **`gesturing`/`gestureSnapshotTaken` are store state so `replaceDocument` can reset
     them — the only reset.** **PROHIBITION: they must not join `restore`'s clear list, and
     no component may read either.** A test of this asserts an undo entry, never a flag.
@@ -428,15 +428,12 @@ changes.
     (`partMesh`), never memoised on the shared bodies. **Rebuild performance breaks silently** (what is memoised where: `docs/invariants.md`). Perf
     guards are the MINIMUM of 9, lowered only, never raised.
     Within-part path chaining on paper is intended — do not undo it.
-    **A row may carry a HEAD, a counterbore or countersink at its mouth (schema 30):** four flat optional scalars (`head`, `headDiameter`,
-    `headDepth`, `headAngle` 82|90), a headless row stores none and is byte for byte as before; `headReach` is the ONE countersink depth,
-    `headProblem` the ONE legality decider (loader DROPS the row, store refuses). **A head and a tilt are refused TOGETHER.** A headed bore
-    is two coaxial convex PIECES (`holePieces`; `holeEnvelope` the conservative form); **faults are judged PER PIECE, exact for a counterbore,
-    CONSERVATIVE for a countersink (its mouth cylinder), never under-reported**; mesh watertight; Level the ends keeps the head's depth from
-    the mouth; a headed bore is never a socket and seats no tenon (inv 58). **A CAM PAIR (no schema change): `camBolt.ts` `camPartners` is
-    the ONE recogniser, by SHAPE, conservative (borderline stays `meets-hole`); `holeFaults`' meets-hole search is the ONE exemption site
-    (skips the partner, keeps searching); planners pass `camPairs: false`; an edit SEPARATING a pair is refused (`separatesPair`).** A clean pair's mesh is one void (`camLoop`, bit-identical from
-    both sides). **`camJoint.ts` `camJointPlan` is the ONE two-part cam-and-bolt planner; every B bore is `boreRow`'s and coaxial with its bolt (`boreAlongAxis`) by test; nothing is stored.** A fit moves only LOOSE B bores (lining up with no cam bolt on any carrier), the nearest shifted set, ties refused, in place. Full text: `docs/invariants.md`.
+    **A row may carry a HEAD (schema 30; a counterbore or countersink at its mouth):** four flat optional scalars, none on a headless row; `headReach` the ONE
+    countersink depth, `headProblem` the ONE legality decider. **A head and a tilt are refused TOGETHER.** A headed bore is two coaxial convex PIECES;
+    **faults are judged PER PIECE, exact for a counterbore, CONSERVATIVE for a countersink, never under-reported**; never a socket, seats no tenon (inv 58).
+    **A CAM PAIR (no schema change): `camBolt.ts` `camPartners` is the ONE recogniser, by SHAPE, conservative; `holeFaults`' meets-hole search is the ONE
+    exemption site; planners pass `camPairs: false`; an edit SEPARATING a pair is refused (`separatesPair`).** **`camJoint.ts` `camJointPlan` is the ONE two-part
+    cam-and-bolt planner; every B bore is `boreRow`'s and coaxial with its bolt by test; nothing is stored.** Full text: `docs/invariants.md`.
 51. **The section cut is view state with ONE writer (`setSection`), never in the document, undo or
     autosave** (a saved view copies it); reset only where `explode` is. One shared `THREE.Plane` clips on the GPU (no geometry
     rebuild). **Caps come only from `sectionCaps`** (board-local; bores subtracted). **Picking and snapping read only `keptBySection`**,
@@ -512,7 +509,7 @@ changes.
     whole**; **finger sets are claimed BEFORE the gate** (`fingerClaim.ts`), **Repair claims them too**, and a joined Refine fixes
     every NEW site touching a kept part as BUTT (a RECORDED joint stays as recorded) and **(c)** returns the design UNJOINED when the
     re-join would change a kept part. **PROHIBITION: do not claim finger sets after the gate, do not force a recorded joint into a
-    kept part butt, and do not drop the (c) guard.** (Headed parts widen the joined-Refine allowance under these same guards; `headJoinChanged` is their (c) sentence.) The cut list prints one line per set, never a tenon or notch lines (`setupLines` claims first). The corner planner
+    kept part butt, and do not drop the (c) guard.** The corner planner
     is `cornerPlan.ts`; every keep/leave-alone site reads `cornerJointed`; the claim sites stay finger-only. Full text: `docs/invariants.md`. Follow-ups 484–496.
 
 62. **A dovetail is a STORED parametric feature of a part's end (schema 26; `lap` 27); `dovetails.ts` is the ONE fault decider (`dovetailFaults`),
@@ -526,10 +523,8 @@ changes.
     Geometry is inv 48's path (square-span VIEW curves through `geometryBoard`, never a curve to the user). **Every reader is correct or refuses:**
     a dovetailed part refuses dovetails on featured stock and every other feature's ADD, and any cut or hole reaching a dovetailed end's
     ZONE on add or edit, EXCEPT a cut running straight through along the run (`cutRunsThrough`); the checks read it as `realBodied` (inv 38).
-    Re-plan keeps the stored count, pin width and tail side; `N` ≤ `DOVETAIL_COUNT_MAX`; a linked user mirrored along J at its mate's SAME
-    turn refuses when the Shape takes PINS. Joinery leaves its size and place alone AND skips a pocket reaching its zone; Refine keeps it
-    (and its assembly) whole, Repair never changes it (`cornerJointed`, `changedDovetailed`). `dovetailBench.ts` builds every bench
-    string (inv 19). **Half-blind:** `cornerPlan.ts`' ONE optional hook `JointKind.inset`, **step 3a** (before any end moves);
+    Re-plan keeps the stored count, pin width and tail side. Joinery leaves its size and place alone AND skips a pocket reaching its zone; Refine keeps it
+    (and its assembly) whole, Repair never changes it (`cornerJointed`, `changedDovetailed`). **Half-blind:** `cornerPlan.ts`' ONE optional hook `JointKind.inset`, **step 3a** (before any end moves);
     **`dovetailCornerStyle` is the ONE tails-side and lap decision** (the lap rule and `autoLap`: the full text); a lap not inside the
     pin part refuses before any mutation. Full text: `docs/invariants.md`. Follow-ups 497–521.
 
@@ -549,12 +544,21 @@ changes.
     **PROHIBITION: do not stretch a feature with `resizeEnd`'s rebase (it keeps far features in the world, which breaks every joint
     past the line), and do not let `writeBackParts` split a definition or a Shape silently.** Full text: `docs/invariants.md`.
 
+65. **A placed dimension stores WHAT it measures, never its value: two anchors and a world axis (schema 33).** `placedDims.ts` holds the ONE resolver
+    (`resolveAnchor`) and the ONE snap-point→anchor converter (`anchorFor`, `null` for a board point whose part is gone, never a silent `{at}`). A lattice
+    anchor is a FRACTION of the part's own size and follows a resize; any other part anchor is LOCAL to its part; a guide-owned or offset anchor is a world
+    point. A `part` is a hint resolved at read time, never repaired on load (inv 33); Group and Ungroup re-key it in the same edit. D in the Tape tool keeps
+    one (ONE undo entry, the held points untouched; `tapeNotice` self-invalidates via `shownTapeNotice`). A detached dimension is drawn nowhere, and the
+    list and the sheet SAY so; the sheet draws at most 6 rows per band and NOTES what it does not draw (no room; past the drawing). A dimension-free
+    project's sheet and drawings are byte for byte as before (its file gains only `dimensions: []`). **PROHIBITION: never store a dimension's value, and
+    never resolve an anchor anywhere but `resolveAnchor`.** Full text: `docs/invariants.md`. Follow-ups 615–627.
+
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 10848 tests (2 todo) across 314 files (timing guards can fail under load; re-run quiet before claiming a regression)
+npm test           # Vitest, currently 10964 tests (2 todo) across 319 files (timing guards can fail under load; re-run quiet before claiming a regression)
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -573,19 +577,12 @@ This list is the triage's open set — when an entry's status changes, change it
   dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight); stretch 545–549 (ask first); glue-ups 556 (stored, schema 33 now; ask first), 557–563; cam-and-bolt 568 (chunk 2 deployed; residue 603–606), 598, 599, 600 (ask first), 605 (ask first), 609, 613, 614 (ask first); counterbores 569 (a head on a tilted row; ask first), 571 (AI authoring a head; ask first), 572 (a head at a through bore's exit), 573 (plugs as parts); construction lines 583, 584, 586–588 (ask first); selectable guides 592 (schema; ask first), 593, 594 (ask first).
 - **Owed to the user, not code:** by eye — counterbores (listed in its spec's *Amended (build)* block), 142, 272 (a phone),
   384(2), 393, 394 (`docs/rounds.md`); 465(2)–(4) (round tenons); 106 (touch/pen); 153 (a browser at quota); a real print — 357
-  (Brave, metric margin), 402(2); paid runs 172, 177. 336's grain seam waits for a texture/shader session. X-ray and Stretch (their `docs/browser-verification-*.md`), Saved views (`docs/rounds.md`), by eye. Selectable guides: Save image, A–D by eye (`docs/browser-verification-selectable-guides.md`). Cam-and-bolt: a close look at the window, a Plans print (`docs/browser-verification-cam-and-bolt.md`).
+  (Brave, metric margin), 402(2); paid runs 172, 177. 336's grain seam waits for a texture/shader session. By eye, per round (each `docs/browser-verification-*.md`, or `docs/rounds.md` for Saved views): X-ray, Stretch, Saved views, Selectable guides (Save image, A–D), Cam-and-bolt (the window, a Plans print), **Placed dimensions: the whole check list is UNRUN, and the colour by eye** (`docs/browser-verification-placed-dimensions.md`).
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain).
 - **Open by decision:** 585 (guide points stay delete-and-replace, fu 130), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
   when a real project needs it), 417 (ask first), 431 (left as is 2026-10-23; do not re-open unasked). Record-only: 401, 403, 409, 413 (ask first), 414, 418, 420–428, 429 (ask first), 433 (ask first), 434, 435.
-- **Open, per round:** splayed legs 436 and 439 (ask first), 441 (by decision), 442, 443, 445; record-only 440, 446. Angled
-  holes: 448 and 453 (ask first), 451, 452; record-only 455, 456, 469. Round tenons: 459, 463 and 467 (ask first); record-only
-  461, 462, 466. Square-set legs: record-only 472, 474. Stretchers: 479 (ask first); record-only 483. Box joints: 493
-  (pre-existing; ask first), 494; record-only 495. Dovetails: 504, 507 and 510 (ask first), 505, 506, 508, 509, 514, 515;
-  record-only 513. Half-blind dovetails: 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521.
-  Weight: 524 and 525 (ask first); record-only 523, 527. Part labels: 528, 529 and 531 (ask first); record-only 530, 533. Align:
-  534–536 and 537's gesture (ask first); record-only 538. X-ray: 539 (ask first); record-only 543. Saved views: 540–542 (ask
-  first); record-only 544. Stretch: 550 (ask first); record-only 551–555. Glue-ups: record-only 565–567. Counterbores: 570 (exploded-iso step rims, an unapproved build ruling); record-only 574, 576 and 577 (575 closed; 576's residue is its other minors). Construction lines round 2: record-only 589 (590 closed, deployed). Selectable guides: 591 (deployed), 596 (a ruling); record-only 595. Cam-and-bolt: 606; record-only 597, 601, 604, 607, 608, 610, 611, 612.
+- **Open, per round:** the triage by round (splayed legs through cam-and-bolt, and placed dimensions 615–627: 615–624 ask first) moved to `docs/follow-ups.md`, "Open, per round (index)", 2026-10-31.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

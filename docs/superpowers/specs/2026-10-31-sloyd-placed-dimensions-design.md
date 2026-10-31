@@ -405,3 +405,59 @@ Recorded by the build (2026-10-31). **Not yet approved by the user.**
    It is decided before packing, so one also over the row cap is reported once, as off the drawing. The same round leaves
    `DIM_LABEL_PAD` between front-H's room after `to` and side-H's room before `from`, and `fitPlaced`'s pass guard throws in
    development and otherwise lays out once more with what was asked, so an overhang is never left unreserved.
+5. **Task 2 (controller ruling): `anchorFor` and the round trip cover every pickable point, `snapPointsFor`, not only
+   `boardSnapPoints`.** §2.2 said "every point `boardSnapPoints` produces"; the Tape also offers a rectangular cut's corners,
+   and a test over `boardSnapPoints` alone saw no cut point. The widened round trip (`resolveAnchor(anchorFor(p)) ≈ p.at`, 1e-9)
+   runs over the board and cut points of the turned, mirrored, leaning, holed and cut fixtures. Cost if wrong: a few extra tests.
+6. **Task 2 (controller ruling): `anchorFor` returns `DimAnchor | null`.** `null` for a board-owned point whose part is not among
+   `parts`; it never falls back to a silent `{at}`, which would print a world point where a part point was meant (anti-goal 2).
+   §2.2 gave board-owned points only `frac` and `local`. `addDimension` refuses on `null` (writes nothing, returns false).
+   Cost if wrong: one signature.
+7. **Task 3 (controller ruling): the tape notice is self-invalidating, not cleared at every site.** The first build cleared
+   `tapeNotice` wherever `tapeAnchor` was nulled and missed four held-point sites (`dropHeldIfGone`, `dropHeldOwnedBy`, the
+   doomed drop, `rekeyHeld`). Instead `tapeNotice` is `{ text, anchor, hover, axis } | null`, capturing the held objects it was
+   raised against, and `shownTapeNotice(state)` is its ONE reader: the text only while `tapeAnchor` and `tapeHover` are still
+   those objects (`===`) and `tapeAxis` is equal. No per-site clear remains, so a future held-point writer cannot miss one.
+   §3 said only that a refusal shows "in the readout's message line"; this fixes its lifetime. Cost if wrong: a reader that
+   skips the helper shows a stale refusal.
+8. **Task 4 (controller ruling): the leaning D integration test anchors on a leaning part's top lattice corner.** The plan asked
+   for two corners of a leaning edge sharing X and Z exactly, which is impossible (an edge of a leaning part is slanted; a
+   zero-splay lean is not stored). The test takes a leaning part's top lattice corner (from `boardSnapPoints`) as the anchor and a
+   guide-owned hover at that corner's X and Z (+1e-13 on X) with Y lowered by 10, and asserts D adds axis `y`: it exercises
+   `DIM_EPS` at the D site. The frac-versus-local noise case stays Task 2's. Cost if wrong: one weaker integration test.
+9. **Task 5 (controller ruling): placed dimensions are NOT drawn in Save image's clean frame.** §4 listed what is not drawn but not
+   this. The labels are drei `Html` elements, which never reach `canvas.toDataURL`, so a saved image would show unlabelled lines,
+   a number missing without saying so (anti-goal 1). Recorded as a follow-up (dimensions in Save image). Cost if wrong: a user
+   wanting dimensions in a PNG waits for the follow-up.
+10. **Task 5 (controller ruling): a detached end names itself `a deleted part` in the list row.** §5 fixes only the row's
+    `(part deleted)` suffix; an end whose part is gone has no display name, so the span reads `Top to a deleted part`
+    (`DimensionsList`). Cost if wrong: one string.
+11. **Task 6 (controller ruling): `trioScale(parts, bandTypes, placed?, units?)`.** Placed rows need label widths to reserve their
+    room, so `units` travels with `placed`; both omitted is today's call exactly (a dimension-free sheet is byte for byte as before,
+    pinned). `PlansSheet`'s section keeps the piece trio's scale through the same call. Cost if wrong: a signature tweak.
+12. **Task 1 (controller clarification): §2.3 has no id-shape rule beyond `takeId`.** `validateDimensions` drops a non-string id;
+    any string id goes through `takeId` (a `/` is re-minted, inv 33), and the build's literals are clean. No further rule added.
+
+**Spec text these rulings change** (the approved text above is kept; read it with these):
+- §2.2: "every point `boardSnapPoints` produces" reads "every pickable point (`snapPointsFor`)" (5); `anchorFor`'s return is
+  `DimAnchor | null` (6).
+- §3: the readout's refusal message line lives only while the held points it was raised against are unchanged (7); the
+  integration test for the axis tolerance is as in 8. "The builder checks that `TapeReadout`'s typed capture never takes `d`"
+  was done: `d` is read in `App`'s keydown only (`e.key`, so the key that types `d` is not matched by code).
+- §4: add "Not drawn in Save image's clean frame" (9).
+- §5: a detached end's name is `a deleted part` (10).
+- §6.2: at most `PLACED_ROWS_MAX = 6` rows per band, and "never dropped" holds for a label too wide for its span only (2);
+  the label side is chosen by room, never clipped (3, which replaced an earlier "before `from`" flip rule limited to the view's
+  outer edge); a dimension reaching past its view's drawing is not drawn and is noted (4); packing's gap is `DIM_LABEL_PAD` (1).
+  Anti-goal 1 ("nothing silently disappears") is kept by the notes in each case.
+- §9 / inv 65: "never resolve an anchor anywhere but `resolveAnchor`" still holds. `placedDimLines`, `dimensionValue` and
+  `rekeyDimensions` all go through it; `anchorFor` is the one converter the other way. Nothing in the build calls `toWorld` for an
+  anchor elsewhere.
+
+**Deferred** (record-only, fu 615–627; the SDD ledger's minors are listed whole in fu 627): a D pressed with typed text pending; the
+orphaned doc comment above `HEAD_NOT_WIDER`; a stale `hoveredDimension` after undo; the duplicate `worldParts` walk in
+`PlacedDims`; key tags that do not avoid placed rows (fu 625). Task 6's other three minors (the `FIT_PASSES` exit, the overhang
+wording, two labels meeting at their limits) were fixed in its round 3.
+
+**Owed to the user.** The dimension colour (`--dim-placed`, `#e0793a`) by eye; the twelve checks of
+`docs/browser-verification-placed-dimensions.md` (unrun); the Plans sheet print by eye; approval of rulings 1–12 above.
