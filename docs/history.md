@@ -7711,3 +7711,45 @@ remedies fu 613, 614, ask first):
 
 The browser check in the user's Chrome passed 11/11. It used mirrored-linked sides, a move by the Y field, the fit through the link, a
 front section through a bore, one-step undo and redo, and the tie refusal. Residue: fu 608–614.
+
+## Placed dimensions (fu 253, 2026-10-31, merge `1a8526bd`, SCHEMA 33; deployed `3cbdb5dd`, `index-dagGyDyx.js`; ruling 17 deployed `3e1d59de`, `index-qqRSerpk.js`)
+
+Every gap in `docs/feature-gaps.md` had shipped, so the user picked from the feature-sized residue: fu 253, the dimension you place
+yourself. They skipped the design questions, so every call in the spec was marked as Claude's and approved afterwards (§13 calls 1–10,
+Amended (build) rulings 1–17).
+
+The design stores WHAT a dimension measures, never its value: two anchors and a world axis.
+- **Anchors follow their part three ways.** A box-lattice point is a fraction of the part's size, so it follows a resize. Any other part
+  point is local to the part, keeping its station as the part's features do. A guide or offset point is a fixed world point.
+- **D in the Tape tool keeps the measurement.** No new tool: the Tape already picks two snap points and locks an axis.
+- **The Plans sheet lays them out itself**, in rows beyond the automatic dimensions: X and Y in Front, Z in Side, the piece trio only.
+- **Deleting a part detaches** its dimensions (listed `(part deleted)`, drawn nowhere, the sheet says how many); undo re-attaches them.
+
+Seven tasks ran subagent-driven with a review after each. What the reviews changed:
+- **Task 2:** the round trip only ever met box points; it now covers every point the Tape offers (cut corners included), and a board
+  point whose part is missing refuses instead of silently becoming a world point.
+- **Task 3:** the D refusal line stayed on screen after its points went. Clearing it at every site that drops a held point missed four
+  sites, so the notice was made SELF-INVALIDATING: it records the anchor, hover and axis it was raised for (later the typed text too,
+  ruling 16) and one reader, `shownTapeNotice`, hides it once any changes.
+- **Task 5:** inline `points` arrays made drei rebuild every line's geometry and recompile its material on each hover.
+- **Task 6, three rounds:** about 19 dimensions from one baseline (shelf heights from the floor) drove the scale negative, so rows are
+  capped at 6 per band with the rest named in a note; a label past its span could run off the paper, so a label now sits on whichever
+  side has room and the figure grows when neither has; and a dimension to a guide point off the piece drew off the page, so it is
+  named in a note instead.
+- **Final review, Critical:** Ungroup keeps a definition child's board id, and every copy of a definition shares its ids, so a
+  detached dimension could re-attach to a DIFFERENT part and print its number (30 became 80 in the probe). Ungroup's `fresh()` now
+  re-mints any id whose landing path a dimension names; the "ids are never reused" argument alone was false for flat paths.
+- **Final review, inv 28:** D in the focused empty box typed a `d` while the hint offered D, and D with a distance typed kept the raw
+  hover while the preview showed the offset point. One action, `keepTapeDimension`, now serves both keys, and D refuses while a
+  distance is typed.
+
+The browser check (the user's Chrome, 20 PASS, 1 partial) found one bug no test could: drei `Html`'s default z-index range put the
+viewport's dimension labels over the Plans sheet and any dialog. They now sit at `[1, 0]`. It also showed a turned shelf's length
+dimension reading `X 0"`, true but useless; after the deploy the user asked for dimensions to turn with their part, and
+`turnDimensions` (ruling 17), run in the store's one `edit()`, remaps a same-part dimension's world axis when its part's frame changes.
+A dimension between two parts keeps its axis (fu 629, ask first).
+
+Two process notes for the next browser check. The page's store must be imported from the URL the app actually loaded (with Vite's
+`?t=` HMR stamp, from `performance.getEntriesByType('resource')`); a bare `/src/store/store.ts` import is a second, unwired instance.
+And restoring a mutation with `git checkout -- <file>` reverted the whole uncommitted feature in that file; commit first, or undo
+the mutation by hand.

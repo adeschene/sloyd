@@ -515,7 +515,7 @@ src/
 │   │                     `geometryBoard` size, `local` keeps its station, both through `toWorld`; a missing part → null = detached), `anchorFor` (the ONE
 │   │                     snap point→anchor converter, by geometry within `DIM_EPS`; `DimAnchor | null`, null for a board point whose part is gone),
 │   │                     `dimensionValue`, `dimensionAxis` (D's decider: the locked axis, else the one differing axis, else the 'Lock an axis' refusal;
-│   │                     also refuses a level pair, `The two points are level along X.`; `App`'s D handler shows either as the tape notice), `rekeyDimensions` (Group/Ungroup, same edit as `rekeyViews`), `placedDimLines` (the sheet's
+│   │                     also refuses a level pair, `The two points are level along X.`; `App`'s D handler shows either as the tape notice), `rekeyDimensions` (Group/Ungroup, same edit as `rekeyViews`), `turnDimensions` (ruling 17: run in the store's ONE `edit()`, remaps a same-part dimension's world axis when its part's frame changes; returns `after` itself when nothing changed), `placedDimLines` (the sheet's
 │   │                     per-view lines `{ id, from, to, a, b, label }`, the label assembled HERE, inv 19) and `detachedNote`. → units (`formatLengthBare`,
 │   │                     for the sheet's labels alone). `validateDimensions` is in document.ts (schema 33)
 │   ├── labels.ts         THE part-label home (part labels): LABEL_STOCKS (Avery 5160/5163, L7160/L7163, exact geometry), defaultStock,
@@ -698,7 +698,7 @@ src/
 │                     generate/, because they own React state and storage writes (moved from CLAUDE.md's layer order, 2026-10-30)
 ├── viewport/         NO unit tests by design. Viewport (its StretchGuide: the stretch line's translucent plane, inv 64 — no raycast, no depth
 │                     write, no clipping plane), BoardMesh (inv 21), MoveTool +
-│                     moveCandidates, TapeTool, Gizmo (invs 3, 10, 42; dragTarget rounds a leaning part's DELTA, the handle at partBounds' centre, inv 57) + gizmoPatch.ts (the flip fix and size ceiling, tested), GuideMarkers, GuideLines (construction lines), PlacedDims (inv 65: placed dimensions in the viewport — segment A to A′, dashed leg, ticks, a drei `Html` label, `--dim-placed`; mounted under `explode === 0 && !clean`, no raycast, not a snap source, skips detached and hidden-part dimensions; hover from the list),
+│                     moveCandidates, TapeTool, Gizmo (invs 3, 10, 42; dragTarget rounds a leaning part's DELTA, the handle at partBounds' centre, inv 57) + gizmoPatch.ts (the flip fix and size ceiling, tested), GuideMarkers, GuideLines (construction lines), PlacedDims (inv 65: placed dimensions in the viewport — segment A to A′, dashed leg, ticks, a drei `Html` label, `--dim-placed`; mounted under `explode === 0 && !clean`, no raycast, not a snap source, skips detached and hidden-part dimensions; hover from the list; labels at `zIndexRange` `LABEL_Z = [1, 0]`, never drei's default, which drew them over the Plans sheet and every dialog),
 │                     GuidePicker (fu 591: the Select tool's guide click, below), projector.ts (`projectorFor`, `ndcDepth`: the ONE
 │                     world→canvas projector of MoveTool, TapeTool and GuidePicker, so their depths share one scale),
 │                     SnapMarker (`SNAP_COLORS`: the colour floors are TESTED, `snapColors.test.ts`; method `docs/snap-hues/`), snapPick (screen-space nearest, on purpose), grain*.ts,

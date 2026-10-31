@@ -569,7 +569,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–628). Every entry's LAST `**Status:**` line governs
+**`docs/follow-ups.md` is authoritative** (1–629). Every entry's LAST `**Status:**` line governs
 (numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number; some entries close mid-line, so read an entry whole.
 
@@ -584,7 +584,7 @@ This list is the triage's open set — when an entry's status changes, change it
 - **Open by decision:** 585 (guide points stay delete-and-replace, fu 130), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
   when a real project needs it), 417 (ask first), 431 (left as is 2026-10-23; do not re-open unasked). Record-only: 401, 403, 409, 413 (ask first), 414, 418, 420–428, 429 (ask first), 433 (ask first), 434, 435.
-- **Open, per round:** the triage by round (splayed legs through cam-and-bolt, and placed dimensions 615–628: 615–624 ask first) moved to `docs/follow-ups.md`, "Open, per round (index)", 2026-10-31.
+- **Open, per round:** the triage by round (splayed legs through cam-and-bolt, and placed dimensions 615–629: 615–624 and 629 ask first) moved to `docs/follow-ups.md`, "Open, per round (index)", 2026-10-31.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

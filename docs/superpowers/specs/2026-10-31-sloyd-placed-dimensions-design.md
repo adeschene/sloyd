@@ -1,6 +1,6 @@
 # Sloyd — placed dimensions (fu 253)
 
-Date: 2026-10-31. Status: approved by the user 2026-10-31; built and merged (`1a8526bd`); browser check run 2026-10-31 (`docs/browser-verification-placed-dimensions.md`); Amended (build) rulings approved 2026-10-31.
+Date: 2026-10-31. Status: approved by the user 2026-10-31; built and merged (`1a8526bd`); browser check run 2026-10-31 (`docs/browser-verification-placed-dimensions.md`); Amended (build) rulings approved 2026-10-31. DEPLOYED 2026-10-31 `3cbdb5dd` (`index-dagGyDyx.js`); ruling 17 (a same-part dimension turns with its part, the user's request) DEPLOYED `3e1d59de` (`index-qqRSerpk.js`).
 
 The user picked fu 253 on 2026-10-31 and skipped the design questions ("skip the questions, go straight to the
 spec"). Every open call below is **Claude's call**, marked **(call)**, for the user to override while reading. §13

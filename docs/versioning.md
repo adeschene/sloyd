@@ -6,7 +6,7 @@
 
 
 Every load path (open, import, autosave-restore) runs `migrateDocument` before the
-document is trusted. `CURRENT_VERSION` is **32** (oblique lines: a guide's `to`; 31 was construction lines, a guide's `axis`; 30 was counterbores, a hole row's `head`; 29 was saved views, `views`; 28 was weight, a custom material's `density`; 27 was half-blind dovetails, merged `33de29a`, deployed 2026-10-28). Steps run one version at a time, in
+document is trusted. `CURRENT_VERSION` is **33** (placed dimensions: `dimensions`; 32 was oblique lines, a guide's `to`; 31 was construction lines, a guide's `axis`; 30 was counterbores, a hole row's `head`; 29 was saved views, `views`; 28 was weight, a custom material's `density`; 27 was half-blind dovetails, merged `33de29a`, deployed 2026-10-28). Steps run one version at a time, in
 order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11→v12, which run after.
 
 | Step | Adds | Shape | Harm a build one version back would do |

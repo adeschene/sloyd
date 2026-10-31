@@ -1,6 +1,6 @@
 # Browser verification — placed dimensions (fu 253, schema 33)
 
-RUN 2026-10-31 in the user's Chrome (merged master `476f6a0e` + the label z-index fix): 20 PASS (13 by the user's eye), 1 PARTIAL (18); 8's print preview not run. One bug found and fixed (check 8). To be run in the user's Chrome: Claude drives it through claude-in-chrome on the dev server (a MobaXterm tunnel to
+RUN 2026-10-31 in the user's Chrome (merged master `476f6a0e` + the label z-index fix): 20 PASS (13 by the user's eye), 1 PARTIAL (18); 8's print preview not run. One bug found and fixed (check 8). Ruling 17 (after the deploy): the shelf turned 90° live — its own dimensions read `Z 22-1/2"`, `X 12"`, `Z 19-1/2"` and draw along it, the cross-part `Shelf to Top` kept X (`6"`), undo restored every value, no console errors. To be run in the user's Chrome: Claude drives it through claude-in-chrome on the dev server (a MobaXterm tunnel to
 `localhost:5199`, branch `placed-dims`); real clicks and keys for every action, results read off the page's own store module. Test
 projects are LEFT in place on dev (the dev profile rule); never clear the dev profile. Spec:
 `docs/superpowers/specs/2026-10-31-sloyd-placed-dimensions-design.md` (§3, §4, §5, §6, §10) and its Amended (build) block. DOM readouts
