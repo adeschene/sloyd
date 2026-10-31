@@ -1,6 +1,6 @@
-import type { Board, CutFrom, HoleRow, ProfileCut, ProfileSide, SloydDocument } from './types';
+import type { Board, CutFrom, Dimension, HoleRow, ProfileCut, ProfileSide, SloydDocument } from './types';
 import type { V3 } from './angleCuts';
-import { axisDimensions, boardExtents, endFacing } from './geometry';
+import { axisDimensions, boardExtents, endFacing, type Bounds } from './geometry';
 import { broadFace, defaultCamLock, holeInstances, mm } from './holes';
 import { camPairRows, camPartners, camRole } from './camBolt';
 import { holeFaults } from './holeFaults';
@@ -16,11 +16,13 @@ import { leans } from './lean';
 import { profileWord } from './ruledOutText';
 import { tenonAt } from './roundTenons';
 import { TOUCH } from './checkTolerances';
+import { partBounds } from './worldBounds';
 import { displayNames, instancesOn, parentPath, worldParts } from './tree';
 import { mapWorld, storageKey } from './treeEdit';
 import {
-  CAM_JOINT_ALREADY, CAM_JOINT_CONTAINERS, CAM_JOINT_COUNT, CAM_JOINT_END_FEATURE, CAM_JOINT_LEAN, CAM_JOINT_MIRRORED,
-  CAM_JOINT_NONE, CAM_JOINT_ON_EDGE, CAM_JOINT_PARTIAL, CAM_JOINT_SAME_PART, CAM_JOINT_THIN, CAM_JOINT_TWO_LOCKS,
+  CAM_JOINT_ALREADY, CAM_JOINT_BARE_FACE, CAM_JOINT_CONTAINERS, CAM_JOINT_COUNT, CAM_JOINT_END_FEATURE, CAM_JOINT_LEAN,
+  CAM_JOINT_MIRRORED, CAM_JOINT_NARROW, CAM_JOINT_NONE, CAM_JOINT_ON_EDGE, CAM_JOINT_PARTIAL, CAM_JOINT_SAME_PART,
+  CAM_JOINT_THIN, CAM_JOINT_TWO_LOCKS,
   camFaceWord, camJointFaulted, camJointLinkNote, type CamEndFeature,
 } from './camJointText';
 
@@ -180,6 +182,9 @@ const EPS = 1e-9;
 const point = (v: readonly number[]) => ({ length: v[0]!, width: v[1]!, thickness: v[2]! });
 const same = (p: readonly number[], q: readonly number[]) => [0, 1, 2].every((i) => Math.abs(p[i]! - q[i]!) <= EPS);
 
+/** `p` lies on or within `TOUCH` of the box `q` (ruling R18: a bore's mouth against a part). */
+const against = (p: readonly number[], q: Bounds) => [0, 1, 2].every((i) => p[i]! >= q.min[i]! - TOUCH && p[i]! <= q.max[i]! + TOUCH);
+
 /** The joint and its two world parts, or the refusal of checks 2–6. */
 function partsOf(doc: SloydDocument, ids: [string, string]): { joint: CamJoint; a: Board; b: Board } | string {
   const joint = findCamJoint(doc, ids);
@@ -258,9 +263,11 @@ function existingBore(b: Board, row: Omit<HoleRow, 'id'>): HoleRow | undefined {
  * Every refusal is decided here, before anything is written, in this order: checks 2–6 (`findCamJoint`); then A's lock at
  * that end — two whole locks (`CAM_JOINT_TWO_LOCKS`), a partial one (`CAM_JOINT_PARTIAL`); when there is no lock to reuse,
  * the count (`CAM_JOINT_COUNT`: a whole number from 1 to `CAM_JOINT_MAX`; never read when the lock is reused), A's broad
- * face on its length (`CAM_JOINT_ON_EDGE`) and A at 1/2" or thinner (`CAM_JOINT_THIN`), `defaultCamLock`'s own order;
- * everything already there (`CAM_JOINT_ALREADY`); then the faults (check 8): A's new rows judged together (the pair's
- * exemption applies), then B's together with `camPairs: false` (a B bore is never a pair) — `camJointFaulted`.
+ * face on its length (`CAM_JOINT_ON_EDGE`), two or more fittings on an end no wider than 2 × 37 mm (`CAM_JOINT_NARROW`,
+ * ruling R17) and A at 1/2" or thinner (`CAM_JOINT_THIN`, `defaultCamLock`'s own); everything already there
+ * (`CAM_JOINT_ALREADY`); then the faults (check 8): A's new rows judged together (the pair's exemption applies), then B's
+ * together with `camPairs: false` (a B bore is never a pair) — `camJointFaulted`; last, on the trial write, a bore of B's
+ * reaching another part through its link that would open against no part (`CAM_JOINT_BARE_FACE`, ruling R18).
  * Tilt and head checks are vacuous: every row made here is square (thrown otherwise) and headless.
  */
 export function camJointPlan(doc: SloydDocument, ids: [string, string], count: number | null, camFrom: CutFrom | null):
@@ -280,6 +287,11 @@ export function camJointPlan(doc: SloydDocument, ids: [string, string], count: n
   if (!pair) {
     if (count !== null && !(Number.isInteger(count) && count >= 1 && count <= CAM_JOINT_MAX)) return CAM_JOINT_COUNT;
     if (broadFace(a) === 'length') return CAM_JOINT_ON_EDGE(nameOf(a));
+    // Ruling R17: two or more fittings start 37 mm in from each side, so an end no wider than that would get a zero or
+    // negative pitch (`defaultCamLock` assumes room; the loader drops a negative pitch). Decided here, never as a null
+    // from `defaultCamLock`, which reads as `CAM_JOINT_THIN`.
+    const along: Dimension = broadFace(a) === 'thickness' ? 'width' : 'thickness';
+    if (count !== null && count >= 2 && a[along] <= 2 * mm(37) + 1e-9) return CAM_JOINT_NARROW(nameOf(a), count);
     const rows = defaultCamLock(a, joint.end, count ?? undefined, camFrom ?? defaultFrom(a));
     if (!rows) return CAM_JOINT_THIN(nameOf(a));
     aRows = rows.map((r) => ({ ...r, id: nextId() }));
@@ -311,6 +323,19 @@ export function camJointPlan(doc: SloydDocument, ids: [string, string], count: n
   const write = (x: Board, rows: readonly HoleRow[]) => ({ id: x.id, holes: rows.length > 0 ? after.find((y) => y.id === x.id)!.holes : x.holes });
   const writes = [write(a, aRows), write(b, bRows)];
   const before = new Map(worldParts(doc).map((x) => [x.id, x]));
+  // Ruling R18: B's bores reaching ANOTHER part through its link or copy must open against some part, as B's open against
+  // A. A plain (not mirrored) link of a carcass's sides lands them on the other side's outside face. Only B's bores, only
+  // on parts other than the two selected: A's rows reaching a linked shelf are its own whole cam lock.
+  const bIds = new Set(bRows.map((r) => r.id));
+  for (const x of after) {
+    if (x.id === a.id || x.id === b.id) continue;
+    const old = new Set((before.get(x.id)?.holes ?? []).map((r) => r.id));
+    for (const r of x.holes) {
+      if (!bIds.has(r.id) || old.has(r.id)) continue;
+      const [mouth] = boreEnds(x, r);
+      if (!after.some((y) => y.id !== x.id && against(mouth, partBounds(y)))) return CAM_JOINT_BARE_FACE(nameOf(x));
+    }
+  }
   const notes = after.filter((x) => x.id !== a.id && x.id !== b.id && JSON.stringify(x.holes) !== JSON.stringify(before.get(x.id)?.holes))
     .map((x) => camJointLinkNote(nameOf(x)));
   return {

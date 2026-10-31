@@ -4,7 +4,7 @@ import { createBoard, migrateDocument, worldParts } from '../document/document';
 import type { Dovetail, SloydDocument } from '../document/document';
 import { camJointPlan } from '../document/camJoint';
 import { linkByRole } from '../document/roleLinks';
-import { CAM_JOINT_NONE, camJointLinkNote } from '../document/camJointText';
+import { CAM_JOINT_BARE_FACE, CAM_JOINT_NONE, camJointLinkNote } from '../document/camJointText';
 import { carcass } from '../document/camJointFixtures';
 import { dovetailMoveClear } from '../document/dovetailText';
 import { displayNames } from '../document/tree';
@@ -139,5 +139,14 @@ describe('addCamJoint', () => {
     expect(r).toEqual({ notes: [camJointLinkNote(displayNames(s().doc).get('shelf2')!)] });
     expect(part('shelf2').holes).toEqual(part(shelf).holes.map((h) => ({ ...h, id: expect.any(String) })));
     expect(s().past.length).toBe(1);
+  });
+
+  it('plain-linked sides (ruling R18): refused with the bare-face sentence; nothing written, no undo entry', () => {
+    const { doc: d0, left, right, shelf } = carcass();
+    setup(linkByRole(d0, new Map([[left, 'side'], [right, 'side']])));
+    const before = s().doc;
+    expect(s().addCamJoint([shelf, left], null, null)).toBe(CAM_JOINT_BARE_FACE(displayNames(before).get(right)!));
+    expect(s().doc).toBe(before);
+    expect(s().past.length).toBe(0);
   });
 });

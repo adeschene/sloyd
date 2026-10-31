@@ -39,7 +39,7 @@ What it does today is listed round by round in `docs/rounds.md`.
   selectable guides fu 591 + cam-and-bolt chunk 1 fu 568; deployed 2026-10-30; earlier rounds: `docs/rounds.md`).
 - **Rollback:** the nearest refusing boundary is `fb1e133` (`index-zJyvpYf3.js`, schema 31): it refuses every project saved at 32 —
   export first. Every older boundary: the table in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-30):** owed: the list below. Then: cam-and-bolt chunk 2 (fu 568); fu 590 (snap hues, approved) ships with the next deploy.
+- **NEXT (2026-10-30):** owed: the list below. Then: deploy cam-and-bolt chunk 2 (fu 568) with fu 590 (approved).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.
@@ -168,7 +168,7 @@ or its role changes. Where a file's own doc comment is the stated single source 
 | panels | `panels/` — one section per feature, each over a pure refusal module |
 
 **Test-only modules** (never import a test module — it re-registers its suite): `treeFixtures.ts`,
-`turnFixtures.ts`, `curveFixtures.ts`, `sweepFixtures.ts`, `meshCases.ts`, `shakerTableFixture.ts`, `stoolFixture.ts`, `holesSquareCases.ts`, `dovetailFixtures.ts`, `stretchFixtures.ts`, `camBoltFixtures.ts`, `camJointFixtures.ts`.
+`turnFixtures.ts`, `curveFixtures.ts`, `sweepFixtures.ts`, `meshCases.ts`, `shakerTableFixture.ts`, `stoolFixture.ts`, `holesSquareCases.ts` (with `holesSquare.snapshot.json`), `dovetailFixtures.ts`, `stretchFixtures.ts`, `camBoltFixtures.ts`, `camJointFixtures.ts`.
 
 ### Per-file rules not covered by an invariant
 
@@ -555,7 +555,7 @@ changes.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 10810 tests (2 todo) across 313 files (timing guards can fail under load; re-run quiet before claiming a regression)
+npm test           # Vitest, currently 10813 tests (2 todo) across 313 files (timing guards can fail under load; re-run quiet before claiming a regression)
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -571,10 +571,10 @@ This list is the triage's open set — when an entry's status changes, change it
 - **Feature-sized (need a spec):** 253 and 265 (schema bumps); 257, 258, 268, 270, 271, 274; 404–407 (hardware); angle cuts
   275, 276 (joint kinds only), 280; holes 330, 331, 334; curves 363 (authoring; design checks reading curved bodies),
   364–366; banding 399, 400; splayed legs 449, 450; stretchers 475–478, 480, 481; round tenons 457, 458, 460; square-set legs 470, 471; box joints 485 (and both dovetail kinds), 486–490, 492;
-  dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight); stretch 545–549 (ask first); glue-ups 556 (stored, schema 33 now; ask first), 557–563; cam-and-bolt 568, chunk 2 built, 598, 599, 600 (ask first), 602, 603, 605 (ask first); counterbores 569 (a head on a tilted row; ask first), 571 (AI authoring a head; ask first), 572 (a head at a through bore's exit), 573 (plugs as parts); construction lines 583, 584, 586–588 (ask first); selectable guides 592 (schema; ask first), 593, 594 (ask first).
+  dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight); stretch 545–549 (ask first); glue-ups 556 (stored, schema 33 now; ask first), 557–563; cam-and-bolt 568, chunk 2 built, not deployed, 598, 599, 600 (ask first), 602, 603, 605 (ask first); counterbores 569 (a head on a tilted row; ask first), 571 (AI authoring a head; ask first), 572 (a head at a through bore's exit), 573 (plugs as parts); construction lines 583, 584, 586–588 (ask first); selectable guides 592 (schema; ask first), 593, 594 (ask first).
 - **Owed to the user, not code:** by eye — counterbores (listed in its spec's *Amended (build)* block), 142, 272 (a phone),
   384(2), 393, 394 (`docs/rounds.md`); 465(2)–(4) (round tenons); 106 (touch/pen); 153 (a browser at quota); a real print — 357
-  (Brave, metric margin), 402(2); paid runs 172, 177. 336's grain seam waits for a texture/shader session. X-ray and Stretch (their `docs/browser-verification-*.md`), Saved views (`docs/rounds.md`), by eye. Selectable guides: Save image, A–D by eye (`docs/browser-verification-selectable-guides.md`). Cam-and-bolt: a close look at the window, a Plans print (`docs/browser-verification-cam-and-bolt.md`); chunk 1's spec Amended R1–R10 (R11, R12 built). Joint round: `docs/browser-verification-cam-and-bolt-joint.md` (pending, check 10 = fu 590 snap hues by eye), joint spec Amended R1–R16.
+  (Brave, metric margin), 402(2); paid runs 172, 177. 336's grain seam waits for a texture/shader session. X-ray and Stretch (their `docs/browser-verification-*.md`), Saved views (`docs/rounds.md`), by eye. Selectable guides: Save image, A–D by eye (`docs/browser-verification-selectable-guides.md`). Cam-and-bolt: a close look at the window, a Plans print (`docs/browser-verification-cam-and-bolt.md`); chunk 1's spec Amended R1–R10 (R11, R12 built). Joint round: `docs/browser-verification-cam-and-bolt-joint.md` (pending, check 10 = fu 590 snap hues by eye), joint spec Amended R1–R18.
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain).
 - **Open by decision:** 585 (guide points stay delete-and-replace, fu 130), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only

@@ -34,6 +34,8 @@ export const CAM_JOINT_COUNT = 'Fittings must be a whole number from 1 to 12.';
 export const CAM_JOINT_THIN = (part: string) => `${part} is too thin for a cam lock — it needs stock thicker than 1/2".`;
 /** A's broad face is its length: the cam would enter an edge (chunk 1's R8). */
 export const CAM_JOINT_ON_EDGE = (part: string) => `${part}'s end is too narrow for a cam lock — its broad face runs the wrong way.`;
+/** Two or more fittings typed on an A whose end is no wider than the two 37 mm insets (ruling R17): no room to space them. */
+export const CAM_JOINT_NARROW = (part: string, n: number) => `${part}'s end is too narrow for ${n} fittings — use fewer.`;
 /** More than one whole cam pair at A's joined end. */
 export const CAM_JOINT_TWO_LOCKS = (part: string) => `${part} has two cam locks at that end — remove one first.`;
 /** A cam pair hole at A's joined end whose rows are not a whole pair. */
@@ -43,6 +45,10 @@ export const CAM_JOINT_PARTIAL = (part: string) =>
 export const CAM_JOINT_ALREADY = (a: string, b: string) => `${a} and ${b} are already joined here.`;
 /** A new row with a hole fault (`holeFaults`); `words` are `holeText.ts`' fault words. */
 export const camJointFaulted = (part: string, words: string) => `${part}'s bore would ${words} — move or remove what's in the way first.`;
+/** A link or copy co-user of B whose new bore would open onto a bare face, against no part (ruling R18): a plain (not
+ *  mirrored) link puts the bore on the copy's outside. */
+export const CAM_JOINT_BARE_FACE = (part: string) =>
+  `${part} would get a bore through its link that opens onto a bare face — make the link a mirrored pair, or unlink ${part}, first.`;
 /** One line per OTHER part that received a row through its link (a Shape's other user, a definition's other placement). */
 export const camJointLinkNote = (part: string) => `${part} got these bores too, through its link.`;
 

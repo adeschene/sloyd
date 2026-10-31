@@ -162,7 +162,9 @@ export function defaultHingeCup(b: Board): Omit<HoleRow, 'id'> {
  *  deep into that end, at the same stations (37 mm from each side, two when the width is at least 150 mm, else one centred; a given `count` overrides that, and
  *  `camFrom` picks which broad face the cam enters, `max` by default).
  *  The cam is deep enough for the half-thickness plus 4.5 mm, rounded up to the next half millimetre. Null when the broad
- *  face is the length (a part that short has no end to join). */
+ *  face is the length (a part that short has no end to join). Assumes a given `count` is an integer ≥ 1, and, when it is
+ *  2 or more, that the part is wider than 2 × 37 mm along the row (else the pitch is zero or negative, which the loader
+ *  drops): the caller decides both (the joint planner refuses them, ruling R17). */
 export function defaultCamLock(
   b: Board, end: CutFrom, count?: number, camFrom?: CutFrom,
 ): [Omit<HoleRow, 'id'>, Omit<HoleRow, 'id'>] | null {

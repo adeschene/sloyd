@@ -17,8 +17,8 @@ import { SHARED_KEYS } from './links';
 import { carcass } from './camJointFixtures';
 import { camFaceOptions, camJointPlan, defaultCamFrom, defaultCamJointCount, type CamJointPlan } from './camJoint';
 import {
-  CAM_JOINT_ALREADY, CAM_JOINT_COUNT, CAM_JOINT_ON_EDGE, CAM_JOINT_PARTIAL, CAM_JOINT_THIN, CAM_JOINT_TWO_LOCKS,
-  camJointFaulted, camJointLinkNote,
+  CAM_JOINT_ALREADY, CAM_JOINT_BARE_FACE, CAM_JOINT_COUNT, CAM_JOINT_NARROW, CAM_JOINT_ON_EDGE, CAM_JOINT_PARTIAL, CAM_JOINT_THIN,
+  CAM_JOINT_TWO_LOCKS, camJointFaulted, camJointLinkNote,
 } from './camJointText';
 
 const MM: Units = { display: 'metric-mm', precision: 16 };
@@ -33,11 +33,20 @@ function planOf(doc: SloydDocument, ids: [string, string], count: number | null 
   if (typeof p === 'string') throw new Error(p);
   return p;
 }
-/** The store's write (Task 4): each entry through `mapWorld`; an unchanged list is not written. */
-const apply = (doc: SloydDocument, p: Pick<CamJointPlan, 'writes'>): SloydDocument => mapWorld(doc, (w) => w.map((b) => {
-  const e = p.writes.find((x) => x.id === b.id);
-  return e && JSON.stringify(e.holes) !== JSON.stringify(b.holes) ? { ...b, holes: e.holes } : b;
-}));
+/**
+ * The store's write (Task 4): each entry through `mapWorld`; an unchanged list is not written. Every applied plan is also
+ * reloaded (ruling R17): through `migrateDocument` after a JSON round trip, every part keeps every hole row (the loader
+ * drops a malformed row, e.g. a negative pitch, so a plan the loader would not keep fails here).
+ */
+const apply = (doc: SloydDocument, p: Pick<CamJointPlan, 'writes'>): SloydDocument => {
+  const next = mapWorld(doc, (w) => w.map((b) => {
+    const e = p.writes.find((x) => x.id === b.id);
+    return e && JSON.stringify(e.holes) !== JSON.stringify(b.holes) ? { ...b, holes: e.holes } : b;
+  }));
+  const reloaded = new Map(worldParts(migrateDocument(JSON.parse(JSON.stringify(next)))).map((b) => [b.id, b.holes]));
+  for (const b of worldParts(next)) expect(reloaded.get(b.id), `${b.id}'s holes after a reload`).toEqual(b.holes);
+  return next;
+};
 const writeOf = (p: CamJointPlan, id: string) => p.writes.find((w) => w.id === id)!;
 const added = (before: readonly HoleRow[], after: readonly HoleRow[]) => after.filter((r) => !before.some((o) => o.id === r.id));
 
@@ -314,6 +323,15 @@ describe('camJointPlan: reuse (spec §3.3)', () => {
     });
   });
 
+  it('plain-linked sides (ruling R18): the right side\'s bores would open onto its outside face, so the left joint refuses', () => {
+    const { doc: d0, left, right, shelf } = carcass();
+    const doc = linkByRole(d0, new Map([[left, 'side'], [right, 'side']]));
+    expect(part(doc, left).shape).toBe(part(doc, right).shape);
+    expect(part(doc, right).mirrored).toBeUndefined();
+    expect(camJointPlan(doc, [shelf, left], null, null)).toBe(CAM_JOINT_BARE_FACE(nameOf(doc, right)));
+    expect(camJointPlan(doc, [right, shelf], null, null)).toBe(CAM_JOINT_BARE_FACE(nameOf(doc, left)));
+  });
+
   it('link notes: a shelf linked to a second shelf names the second, once', () => {
     const { doc: d0, left, right, shelf } = carcass();
     const second = createBoard({ ...part(d0, shelf), id: 'shelf2', name: 'Shelf 2', position: [0.75, 20, 0] });
@@ -338,6 +356,19 @@ describe('camJointPlan: refusals (spec §3.4 checks 7–8)', () => {
     const { doc: d, left, shelf } = carcass();
     const doc = patched(d, shelf, (b) => ({ ...b, thickness: 0.5 }));
     expect(camJointPlan(doc, [shelf, left], null, null)).toBe(CAM_JOINT_THIN('Shelf'));
+  });
+
+  it('a 2" shelf with two or more fittings: CAM_JOINT_NARROW (ruling R17), before any layout; one fitting is laid out', () => {
+    const { doc: d, left, shelf } = carcass();
+    const doc = patched(d, shelf, (b) => ({ ...b, width: 2 }));
+    // Two or more fittings start 37 mm in from each side: 2" (50.8 mm) leaves a negative pitch, which the loader drops.
+    for (const n of [2, 3]) expect(camJointPlan(doc, [shelf, left], n, null)).toBe(CAM_JOINT_NARROW('Shelf', n));
+    // Exactly 2 × 37 mm across: a zero pitch, two fittings in one place — refused too.
+    const exact = patched(d, shelf, (b) => ({ ...b, width: 2 * mm(37) }));
+    expect(camJointPlan(exact, [shelf, left], 2, null)).toBe(CAM_JOINT_NARROW('Shelf', 2));
+    expect(planOf(doc, [shelf, left], 1).fittings).toBe(1);
+    expect(planOf(doc, [shelf, left]).fittings).toBe(1);
+    expectJoined(doc, planOf(doc, [shelf, left], 1));
   });
 
   it('a block whose broad face is its length: CAM_JOINT_ON_EDGE', () => {

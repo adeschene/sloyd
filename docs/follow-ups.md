@@ -8384,6 +8384,8 @@ possibly dowels beside each and a Fit again. Its own spec. Hardware from a pair 
 section; no schema change; spec `docs/superpowers/specs/2026-10-30-sloyd-cam-and-bolt-joint-design.md`, its *Amended (build)* block awaits approval;
 browser check `docs/browser-verification-cam-and-bolt-joint.md`, pending). What stays out of it: Fit again (fu 602), dowels (fu 603), the B-bore
 recogniser (fu 604), the joint as support (fu 605), world end words (fu 606); the build's minors are fu 607; hardware from a pair is fu 600.
+Final review fix wave (2026-10-30): a typed count of 2+ on an end no wider than 2 × 37 mm refuses (R17; it laid out a negative pitch the
+loader drops), and a bore reaching B's plain-linked copy onto a bare face refuses (R18); both in the spec's *Amended (build)* block.
 
 **569. A head on a TILTED row (pocket screws; feature-sized, ask first).** Adding a head to a tilted row and tilting a headed row are refused
 both ways (counterbores spec §3.3): a head there needs elliptical head rings, a stepped capsule for `meets-hole` and a tilted cone, so every

@@ -261,6 +261,18 @@ Recorded by the build (Task 6, 2026-10-30). **Not yet approved by the user.** Ru
     consistent with the Cam lock preset labels; a copy review may move both to world words (fu 606). Cost if wrong: one wording change in two places.
 16. **R16 (Task 5; §6): the panel's link-notes test stubs the store's return** (wiring only); real link notes are proved in
     `store.camJoint.test.ts` and `camJoint.plan.test.ts`. Cost if wrong: none.
+17. **R17 (final review; §3.2, §3.4 check 7): a typed count of 2 or more on an A whose span along the row is at most 2 × 37 mm refuses with
+    `CAM_JOINT_NARROW`** (a new too-narrow sentence naming A and the count), decided in the planner after on-edge and before
+    `defaultCamLock` (so before thin), never as a null from it (which reads as `CAM_JOINT_THIN`). `defaultCamLock` would lay out a zero or
+    negative pitch, which `holeFaults` passes but `migrateDocument` drops, so the pair vanished on reload. A round-trip guard in
+    `camJoint.plan.test.ts`' apply helper reloads every applied plan (`migrateDocument` after a JSON round trip) and requires every row kept.
+    Cost if wrong: none (the loader would drop those rows).
+18. **R18 (final review; §3.2, §3.5; the spec is silent, the controller's call, flagged to the user): when the trial write gives ANOTHER
+    world part (a link or copy co-user of B) a new bore whose mouth does not lie against some other world part's box (within `TOUCH`), the
+    plan refuses with `CAM_JOINT_BARE_FACE`, naming that part**: its bore would open onto a bare face (the outside of a carcass side whose
+    link is a plain copy). Only B's bores, only on parts other than the two selected; a correctly mirrored link puts the co-user's bore on
+    its inner face, against the shelf, and passes (R3, R12). Cost if wrong: refuses a linked layout where the copy's mating part is not
+    placed yet (place it first), or the user may prefer a warning note instead.
 
 **Differences from the spec as written**
 - **`holesZoneRefusal` was not moved** (§5, §7). It stays in `store.ts`; `addCamJoint` calls it on each written part before `edit()`, as
@@ -268,7 +280,8 @@ Recorded by the build (Task 6, 2026-10-30). **Not yet approved by the user.** Ru
 - **There is no AMBIGUOUS sentence** (§3.1, §3.4): many candidates refuse as none (R8), with `CAM_JOINT_NONE`.
 - **The `holesKey` storage rule** (R9) is the check-4 mechanism, in place of plain `storageKey`.
 - **Refusal 6 is narrowed** (R4, R5): it names what changes A's end, not every feature that touches the end's region; banding never refuses.
-- **Check 7's order** is R10's, not the order §3.4 lists.
+- **Check 7's order** is R10's, not the order §3.4 lists, with R17's narrow refusal between on-edge and thin.
+- **Two refusals the spec does not list** (R17, R18): too narrow for the typed count, and a linked bore opening onto a bare face.
 - **The throw guards** (R14): the panel and the store catch the planner's caller-bug throws.
 - **Not done, recorded:** Fit again (fu 602), dowels (fu 603), the B-bore recogniser (fu 604), the joint as support in the checks (fu 605), world
   end words (fu 606), the build's minors (fu 607). Hardware from a pair stays fu 600.

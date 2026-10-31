@@ -265,7 +265,8 @@ src/
 │   │                     holeFaults, legSockets, treeEdit): findCamJoint (A's end butting B's face, both selection orders; refusals
 │   │                     2–6 of spec §3.4; R4/R5: only what changes the END refuses; R8: many candidates refuse as none),
 │   │                     camJointPlan (the layout with holes.ts' defaultCamLock(b, end, count?, camFrom?), reuse of A's pair and of a
-│   │                     B bore, B's bores by legSockets' boreRow, judged camPairs: false; checks 7–8 in R10's order; holesKey is the
+│   │                     B bore, B's bores by legSockets' boreRow, judged camPairs: false; checks 7–8 in R10's order, R17's narrow refusal before
+│   │                     defaultCamLock, R18's bare-face refusal on the trial write (a co-user's B bore against no part); holesKey is the
 │   │                     storage-target rule for linked users, R9) → { writes, reused, notes } | string, defaultCamJointCount,
 │   │                     camFaceOptions (exactly two {from,label}, R2) and defaultCamFrom (the panel's), CAM_JOINT_MAX (12); the
 │   │                     three caller-bug throws stay (R14: the panel and the store catch them)
