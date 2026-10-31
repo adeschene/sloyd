@@ -21,7 +21,7 @@ export function DimensionsList() {
     const parts = worldParts(doc);
     const names = displayNames(doc);
     const hidden = new Set(hiddenIds);
-    const end = (a: DimAnchor) => ('part' in a ? names.get(a.part) ?? '' : 'a point');
+    const end = (a: DimAnchor) => ('part' in a ? names.get(a.part) ?? 'a deleted part' : 'a point');
     return doc.dimensions.map((d) => {
       const value = dimensionValue(parts, d);
       const isHidden = [d.a, d.b].some((a) => 'part' in a && isCovered(a.part, hidden));

@@ -17,7 +17,7 @@ describe('DimensionsFooter (placed-dimensions spec §5)', () => {
     expect(screen.queryByRole('button', { name: /^Dimensions/ })).toBeNull();
   });
 
-  it('opens itself when a dimension is added, and stays as left after a hand close', () => {
+  it('opens itself when a dimension is added, and again after a hand close', () => {
     render(<DimensionsFooter />);
     const pts = snapPointsFor(worldParts(st().doc)[0]!);
     const a = pts[0]!;
@@ -26,6 +26,11 @@ describe('DimensionsFooter (placed-dimensions spec §5)', () => {
     expect(toggle()).toHaveAccessibleName('Dimensions · 1');
     expect(toggle()).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('button', { name: 'Delete dimension' })).toBeEnabled();
+    act(() => toggle().click());                          // user closes it
+    expect(toggle()).toHaveAttribute('aria-expanded', 'false');
+    act(() => { st().addDimension(a, b, 'x'); });
+    expect(toggle()).toHaveAccessibleName('Dimensions · 2');
+    expect(toggle()).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('starts closed for a project that already has dimensions', () => {

@@ -34,7 +34,7 @@ describe('DimensionsList (placed-dimensions spec §5)', () => {
   it('says (part deleted) for a detached row, which still deletes', async () => {
     st().replaceDocument(docWith([{ ...toTop, b: { part: 'gone', frac: F0 } }]));
     render(<DimensionsList />);
-    expect(screen.getByRole('listitem')).toHaveTextContent('(part deleted)');
+    expect(screen.getByRole('listitem')).toHaveTextContent('Y a point to a deleted part (part deleted)');
     await userEvent.click(screen.getByRole('button', { name: 'Delete dimension' }));
     expect(st().doc.dimensions).toHaveLength(0);
   });

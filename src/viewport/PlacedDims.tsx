@@ -16,13 +16,15 @@ function placedColor(): string {
 }
 
 const TICK = 0.5;
+// Hoisted: nothing allocated per render may reach drei (its Line rebuilds geometry on a new `points`).
+const noRaycast = () => null;
+const COMMON = { depthTest: false, depthWrite: false, transparent: true, toneMapped: false, renderOrder: 9, raycast: noRaycast } as const;
 type P = [number, number, number];
 
 interface Drawn {
   id: string;
-  a: P;
-  a2: P;
-  b: P;
+  seg: [P, P];
+  legPts: [P, P];
   value: number;
   ticks: [P, P][];
   mid: P;
@@ -65,7 +67,7 @@ export function PlacedDims() {
         return [lo, hi];
       };
       out.push({
-        id: d.id, a, a2, b, value,
+        id: d.id, seg: [a, a2], legPts: [a2, b], value,
         ticks: [tick(a), tick(a2)],
         mid: [(a[0] + a2[0]) / 2, (a[1] + a2[1]) / 2, (a[2] + a2[2]) / 2],
         leg: Math.hypot(a2[0] - b[0], a2[1] - b[1], a2[2] - b[2]) > DIM_EPS,
@@ -79,12 +81,11 @@ export function PlacedDims() {
       {drawn.map((d) => {
         const on = hovered === d.id;
         const width = on ? 3 : 1.6;
-        const common = { color, depthTest: false, depthWrite: false, transparent: true, toneMapped: false, renderOrder: 9, raycast: () => null } as const;
         return (
           <group key={d.id}>
-            <Line points={[d.a, d.a2]} lineWidth={width} {...common} />
-            {d.ticks.map((t, k) => <Line key={k} points={t} lineWidth={width} {...common} />)}
-            {d.leg && <Line points={[d.a2, d.b]} lineWidth={on ? 2 : 1} dashed dashSize={0.4} gapSize={0.4} {...common} />}
+            <Line points={d.seg} lineWidth={width} color={color} {...COMMON} />
+            {d.ticks.map((t, k) => <Line key={k} points={t} lineWidth={width} color={color} {...COMMON} />)}
+            {d.leg && <Line points={d.legPts} lineWidth={on ? 2 : 1} dashed dashSize={0.4} gapSize={0.4} color={color} {...COMMON} />}
             <Html position={d.mid} center className={on ? 'dim-label dim-label-hover' : 'dim-label'} style={{ pointerEvents: 'none' }}>
               {formatLength(d.value, doc.units)}
             </Html>
