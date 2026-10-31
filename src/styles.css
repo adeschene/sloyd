@@ -51,6 +51,9 @@
   --accent-dim: #7d5a33;
   --on-accent: #23190f;
 
+  /* Placed dimensions in the viewport (fu 253): a starting value, the user picks it by eye. */
+  --dim-placed: #e0793a;
+
   /* The dim behind a modal sheet or dialog: one value for every overlay (fu 57). */
   --scrim: rgba(20, 15, 11, 0.72);
 
@@ -1835,3 +1838,10 @@ select.input { cursor: pointer; }
 /* An axis line's two coordinate fields sit in its row (construction-lines-2 spec §5). */
 .guides li .field { flex: none; width: 76px; margin: 0; }
 .guides li:has(.field) { flex-wrap: wrap; }
+
+/* A placed dimension's value in the viewport (drei Html): never takes the pointer. */
+.dim-label { pointer-events: none; user-select: none; white-space: nowrap; padding: 1px 5px;
+  font: 600 12px/1.3 var(--font-num, monospace); color: var(--dim-placed);
+  background: var(--surface, rgba(20, 15, 11, 0.8)); border: 1px solid var(--dim-placed); border-radius: var(--radius, 3px); }
+.dim-label-hover { background: var(--dim-placed); color: var(--on-accent, #23190f); }
+.dimension-span, .dimension-state { color: var(--ink-faint); }

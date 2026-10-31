@@ -7,6 +7,7 @@ import { PartsList } from './panels/PartsList';
 import { Properties } from './panels/Properties';
 import { GuidesFooter } from './panels/GuidesFooter';
 import { ViewsFooter } from './panels/ViewsFooter';
+import { DimensionsFooter } from './panels/DimensionsFooter';
 import { FileMenu, SaveIndicator, StorageBanner } from './panels/FileMenu';
 import type { FileMenuHandle } from './panels/FileMenu';
 import { CutList } from './panels/CutList';
@@ -1087,6 +1088,7 @@ export default function App() {
             */}
             <GuidesFooter key={activeId} />
             {/* Not `key={activeId}`: sibling keys must differ, or React merges the two footers. */}
+            <DimensionsFooter key={`dims-${activeId}`} />
             <ViewsFooter key={`views-${activeId}`} getCamera={() => viewportRef.current?.getCamera() ?? null} onGoTo={goToSavedView} />
           </aside>
         </main>
