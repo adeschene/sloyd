@@ -8652,7 +8652,7 @@ review may move both to world words (the Align words) together.
 - Task 5 (panel): the memo signature misses `displayNames`, container mirroring and other Shape users (the click-time re-plan backstops it); a
   stale hidden count is passed under reuse (the planner ignores it); no exploded-state panel test; the cam-face wiring test is weak;
   `console.error` fires twice under StrictMode.
-- Task 6 (records): CLAUDE.md sits at about 60.1 KB, over its ~60 KB budget by a little.
+- Task 6 (records): CLAUDE.md sat at about 60.2 KB during the round; 60,009 bytes after the close-out (at the ~60 KB budget).
 - Final review: the panel's memo can show a stale state when a THIRD part changes while the same pair stays selected (R18 reads other parts;
   the store re-plans at click time, so nothing wrong is written); a linked shelf's note says it "got these bores too" when it got the cam rows
   (browser check 9; a word for the copy review with fu 606); the two new sentences (`CAM_JOINT_NARROW`, `CAM_JOINT_BARE_FACE`) are the build's
