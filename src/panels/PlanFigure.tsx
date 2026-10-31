@@ -1,13 +1,14 @@
 import { memo, useId, useMemo } from 'react';
-import type { AnyLine, BandType, Board, SloydDocument } from '../document/types';
+import type { AnyLine, BandType, Board, PlacedDimension, SloydDocument } from '../document/types';
 import { worldParts } from '../document/tree';
 import { drawView, FRONT, ISO, SIDE, TOP, type Drawing, type P2, type Seg2, type View } from '../document/drawing';
 import { planLines } from '../document/planLines';
 import { dimensionView, type DimLine } from '../document/dimensions';
 import type { Units } from '../units/length';
 import { explodeOffsets } from '../document/explode';
-import { fitChain } from './planDims';
-import { DIM_BAND, ISO_MARGIN, PLAN_WIDTH, layoutTrio, toSvg, type Placement } from './planLayout';
+import { DIM_LABEL_PAD, EXT_GAP, fitChain, noRoomNote, offDrawingNote, packPlaced, type PackedLine, type PlacedLabel } from './planDims';
+import { DIM_BAND, DIM_ROW, ISO_MARGIN, PLACED_ROWS_MAX, PLAN_WIDTH, VIEW_GAP, layoutTrio, toSvg, type Placement, type TrioLayout, type TrioRows } from './planLayout';
+import { detachedNote, placedDimLines, type PlacedLine } from '../document/placedDims';
 import type { Section } from '../document/section';
 import { cuttingLine, hatchPatterns, HATCHES, markedView, sectionTitle, sectionViewOf, type CuttingLine } from '../document/sectionView';
 import { buildCutList, flatDocument } from '../document/document';
@@ -23,7 +24,6 @@ const TICK = 6;
  * would stretch a narrower, height-capped figure back to full width — and back off the page (fu 254).
  */
 const pageWidth = (width: number) => ({ width: `${(Math.min(width, PLAN_WIDTH) / PLAN_WIDTH) * 100}%` });
-const EXT_GAP = 4;
 
 type ToSvg = ReturnType<typeof toSvg>;
 
@@ -59,8 +59,10 @@ function Lines({ d, map, hidden }: { d: Drawing; map: ToSvg; hidden: boolean }) 
   );
 }
 
-/** One dimension line between SVG points a and b, label centred; `vertical` rotates the label. */
-function Dim({ a, b, label, vertical }: { a: P2; b: P2; label: string; vertical: boolean }) {
+/** One dimension line between SVG points a and b, label centred; `vertical` rotates the label. A placed dimension's label
+ *  too wide for its span (placed-dimensions spec §6.2, Amended rulings 1, 3) starts just beyond `b` (`past`, the span's far
+ *  end) or ends just before `a` (`before`). */
+function Dim({ a, b, label, vertical, at = 'centre' }: { a: P2; b: P2; label: string; vertical: boolean; at?: PlacedLabel }) {
   const mx = (a[0] + b[0]) / 2;
   const my = (a[1] + b[1]) / 2;
   const tick = (p: P2) => <line x1={p[0] - TICK / 2} y1={p[1] + TICK / 2} x2={p[0] + TICK / 2} y2={p[1] - TICK / 2} />;
@@ -69,7 +71,15 @@ function Dim({ a, b, label, vertical }: { a: P2; b: P2; label: string; vertical:
       <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} />
       {tick(a)}
       {tick(b)}
-      {vertical ? (
+      {at === 'past' ? (vertical ? (
+        <text className="plan-dim-label" x={b[0] - EXT_GAP} y={b[1] - EXT_GAP} textAnchor="start" transform={`rotate(-90 ${b[0] - EXT_GAP} ${b[1] - EXT_GAP})`}>{label}</text>
+      ) : (
+        <text className="plan-dim-label" x={b[0] + EXT_GAP} y={b[1] - EXT_GAP} textAnchor="start">{label}</text>
+      )) : at === 'before' ? (vertical ? (
+        <text className="plan-dim-label" x={a[0] - EXT_GAP} y={a[1] + EXT_GAP} textAnchor="end" transform={`rotate(-90 ${a[0] - EXT_GAP} ${a[1] + EXT_GAP})`}>{label}</text>
+      ) : (
+        <text className="plan-dim-label" x={a[0] - EXT_GAP} y={a[1] - EXT_GAP} textAnchor="end">{label}</text>
+      )) : vertical ? (
         <text className="plan-dim-label" x={mx - EXT_GAP} y={my} textAnchor="middle" transform={`rotate(-90 ${mx - EXT_GAP} ${my})`}>{label}</text>
       ) : (
         <text className="plan-dim-label" x={mx} y={my - EXT_GAP} textAnchor="middle">{label}</text>
@@ -79,6 +89,96 @@ function Dim({ a, b, label, vertical }: { a: P2; b: P2; label: string; vertical:
 }
 
 interface Fitted { overall: DimLine | null; chain: DimLine[] }
+
+/** Placed dimensions packed into rows (`packPlaced`). */
+type Packed = readonly PackedLine[];
+type PlacedLines = ReturnType<typeof placedDimLines>;
+interface PlacedFit { lay: TrioLayout; frontH: Packed; frontV: Packed; sideH: Packed; notes: string[] }
+const rowsOf = (p: Packed) => p.reduce((n, x) => Math.max(n, x.row + 1), 0);
+
+/** Overhang room is reserved in steps of this many SVG units, so the fit below settles in finitely many passes. */
+const OVERHANG_STEP = 8;
+const FIT_PASSES = 64;
+const reserve = (held: number, asked: number) => (asked > 0 ? held + Math.ceil(asked / OVERHANG_STEP) * OVERHANG_STEP : held);
+
+/** Inches: how far an anchor may sit outside its view's drawing bounds and still be drawn (Amended ruling 4). */
+const ON_DRAWING_EPS = 1e-9;
+const onDrawing = (l: PlacedLine, d: Drawing) => [l.a, l.b].every((p) => [0, 1].every((k) =>
+  p[k]! >= d.bounds.min[k]! - ON_DRAWING_EPS && p[k]! <= d.bounds.max[k]! + ON_DRAWING_EPS));
+
+/**
+ * The trio's layout with room for its placed dimensions (placed-dimensions spec §6.2), the ONE fit behind both `PlanTrio`
+ * and `trioScale` (so the section block keeps the piece trio's scale): lay out, pack at that scale, lay out again with what
+ * packing asked for, until it asks for no more.
+ * First, a dimension with an anchor outside its view's drawing bounds (by more than ON_DRAWING_EPS, along the span or
+ * across it) is NOT drawn, and its view's note says so (Amended ruling 4): no part is drawn there, so its line would hang
+ * in air or run off the paper, and the bounds are never widened (every view's alignment would move). It is then never
+ * packed, so it is reported once, never also as over the row cap.
+ * Each band's label room (Amended ruling 3), toward the next thing on the paper, rows and reserves included:
+ * - front-H: after `to`, the front–side gap up to the side's own left band, less DIM_LABEL_PAD; before `from`, the
+ *   viewBox's left edge;
+ * - side-H: after `to`, the viewBox's right edge; before `from`, back to the side's left band (so a front-H label and a
+ *   side-H label at their limits are DIM_LABEL_PAD apart);
+ * - front-V: after `to` (up), the whole plan–front gap; before `from` (down), the viewBox's bottom edge.
+ * A label fitting neither side overhangs past `to`, and the layout reserves that overhang (`overGap`, `overRight`,
+ * `overTop`), so no label is clipped.
+ * Termination: what is reserved only grows (rows keep the larger of reserved and asked, per band; an overhang adds whole
+ * OVERHANG_STEPs). Rows are capped at PLACED_ROWS_MAX (ruling 2). An overhang is bounded: every drawn anchor lies on its
+ * view's drawing (ruling 4), so `to` never passes the view's edge and a label never reaches more than `EXT_GAP +
+ * labelWidth` beyond its band; it grows as the scale falls (spans shorten, labels are fixed width) but never past that.
+ * So finitely many passes grow anything, and the next one holds; on it, packing at the layout's own scale fits everything
+ * it reserves. FIT_PASSES guards the render against a flaw in this argument: reaching it throws in development, and
+ * otherwise lays out once more with what was asked, so no overhang is ever left unreserved. No lines: exactly
+ * `layoutTrio` without rows.
+ */
+export function fitPlaced(drawings: readonly [Drawing, Drawing, Drawing], lines: PlacedLines | null): PlacedFit {
+  const [f, s, t] = drawings;
+  if (!lines) return { lay: layoutTrio(f.bounds, s.bounds, t.bounds), frontH: [], frontV: [], sideH: [], notes: [] };
+  const fhAll = lines.frontH.filter((l) => onDrawing(l, f));
+  const fvAll = lines.frontV.filter((l) => onDrawing(l, f));
+  const shAll = lines.sideH.filter((l) => onDrawing(l, s));
+  const off = (ls: readonly PlacedLine[], d: Drawing, axis: 'X' | 'Y' | 'Z') => ls.filter((l) => !onDrawing(l, d)).map((line) => ({ axis, line }));
+  const attempt = (held: Held) => {
+    const lay = layoutTrio(f.bounds, s.bounds, t.bounds, held);
+    const sc = lay.scale;
+    const pack = (ls: readonly PlacedLine[], lo: number, hi: number) => packPlaced(ls, sc, { lo, hi, maxRows: PLACED_ROWS_MAX });
+    const below = Math.max(held.frontBelow, held.sideBelow) * DIM_ROW;
+    // In each band's own scaled coordinates: SVG distances off the view's edge, the view's edge at `bounds·scale`.
+    const fh = pack(fhAll, f.bounds.min[0] * sc - DIM_BAND,
+      f.bounds.max[0] * sc + DIM_BAND + held.frontRight * DIM_ROW + held.overGap + VIEW_GAP - DIM_LABEL_PAD);
+    const fv = pack(fvAll, f.bounds.min[1] * sc - DIM_BAND - below,
+      f.bounds.max[1] * sc + DIM_BAND + VIEW_GAP + DIM_BAND + held.overTop);
+    const sh = pack(shAll, s.bounds.min[0] * sc - DIM_BAND, s.bounds.max[0] * sc + DIM_BAND + held.overRight);
+    const next: Held = {
+      frontBelow: Math.max(held.frontBelow, rowsOf(fh.packed)),
+      frontRight: Math.max(held.frontRight, rowsOf(fv.packed)),
+      sideBelow: Math.max(held.sideBelow, rowsOf(sh.packed)),
+      overGap: reserve(held.overGap, fh.overhang),
+      overRight: reserve(held.overRight, sh.overhang),
+      overTop: reserve(held.overTop, fv.overhang),
+    };
+    const notes = [
+      offDrawingNote(FRONT.title, [...off(lines.frontH, f, 'X'), ...off(lines.frontV, f, 'Y')]),
+      noRoomNote(FRONT.title, [...fh.dropped.map((line) => ({ axis: 'X' as const, line })), ...fv.dropped.map((line) => ({ axis: 'Y' as const, line }))]),
+      offDrawingNote(SIDE.title, off(lines.sideH, s, 'Z')),
+      noRoomNote(SIDE.title, sh.dropped.map((line) => ({ axis: 'Z' as const, line }))),
+    ].filter((n): n is string => n !== null);
+    const settled = HELD_KEYS.every((k) => next[k] === held[k]);
+    return { fit: { lay, frontH: fh.packed, frontV: fv.packed, sideH: sh.packed, notes }, next, settled };
+  };
+  let held: Held = { frontBelow: 0, frontRight: 0, sideBelow: 0, overGap: 0, overRight: 0, overTop: 0 };
+  for (let pass = 1; ; pass++) {
+    const r = attempt(held);
+    if (r.settled) return r.fit;
+    if (pass >= FIT_PASSES) {
+      if (import.meta.env.DEV) throw new Error(`fitPlaced: no fit after ${FIT_PASSES} passes`);
+      return attempt(r.next).fit;
+    }
+    held = r.next;
+  }
+}
+type Held = Required<TrioRows>;
+const HELD_KEYS: readonly (keyof Held)[] = ['frontBelow', 'frontRight', 'sideBelow', 'overGap', 'overRight', 'overTop'];
 
 /** The leader's end dot, in SVG units. */
 const DOT_R = 2.5;
@@ -109,8 +209,11 @@ function ConstructionLines({ lines, view, d, map }: { lines: readonly AnyLine[];
   return <path className="plan-construction" d={segs.map((s) => `M${map(s.a).map((n) => n.toFixed(2)).join(' ')}L${map(s.b).map((n) => n.toFixed(2)).join(' ')}`).join('')} />;
 }
 
-/** One elevation with its dimensions: chain above/left, overall below/right (spec §5.4). */
-function Elevation({ d, at, scale, h, v, view, lines }: { d: Drawing; at: Placement; scale: number; h: Fitted; v: Fitted; view: View; lines?: readonly AnyLine[] }) {
+/** One elevation with its dimensions: chain above/left, overall below/right (spec §5.4); placed dimensions in rows beyond
+ *  the overall one, each extension line from its anchor (placed-dimensions spec §6.2). */
+function Elevation({ d, at, scale, h, v, view, lines, placedH, placedV }: {
+  d: Drawing; at: Placement; scale: number; h: Fitted; v: Fitted; view: View; lines?: readonly AnyLine[]; placedH?: Packed; placedV?: Packed;
+}) {
   const map = toSvg(d, at, scale);
   const left = at.x;
   const right = at.x + (d.bounds.max[0] - d.bounds.min[0]) * scale;
@@ -132,6 +235,28 @@ function Elevation({ d, at, scale, h, v, view, lines }: { d: Drawing; at: Placem
       <Dim a={[x, Y(line.from)]} b={[x, Y(line.to)]} label={line.label} vertical />
     </g>
   );
+  const hPlaced = ({ line, row, label }: PackedLine) => {
+    const y = bottom + DIM_BAND + (row + 1) * DIM_ROW - 8;
+    const ext = (p: P2) => <line className="plan-ext" x1={X(p[0])} y1={Y(p[1])} x2={X(p[0])} y2={y + (y > Y(p[1]) ? TICK : -TICK)} />;
+    return (
+      <g className="plan-dim-placed" key={`ph${line.id}`}>
+        {ext(line.a)}
+        {ext(line.b)}
+        <Dim a={[X(line.from), y]} b={[X(line.to), y]} label={line.label} vertical={false} at={label} />
+      </g>
+    );
+  };
+  const vPlaced = ({ line, row, label }: PackedLine) => {
+    const x = right + DIM_BAND + (row + 1) * DIM_ROW - 8;
+    const ext = (p: P2) => <line className="plan-ext" x1={X(p[0])} y1={Y(p[1])} x2={x + (x > X(p[0]) ? TICK : -TICK)} y2={Y(p[1])} />;
+    return (
+      <g className="plan-dim-placed" key={`pv${line.id}`}>
+        {ext(line.a)}
+        {ext(line.b)}
+        <Dim a={[x, Y(line.from)]} b={[x, Y(line.to)]} label={line.label} vertical at={label} />
+      </g>
+    );
+  };
   return (
     <g>
       <Lines d={d} map={map} hidden />
@@ -140,6 +265,8 @@ function Elevation({ d, at, scale, h, v, view, lines }: { d: Drawing; at: Placem
       {h.chain.map((c) => hDim(c, top - DIM_BAND / 2, top))}
       {v.overall && vDim(v.overall, right + DIM_BAND / 2, right)}
       {v.chain.map((c) => vDim(c, left - DIM_BAND / 2, left))}
+      {placedH && placedH.map(hPlaced)}
+      {placedV && placedV.map(vPlaced)}
     </g>
   );
 }
@@ -162,50 +289,62 @@ export function trioDrawings(parts: readonly Board[], bandTypes: readonly BandTy
   byParts.set(parts, out);
   return out;
 }
-export function trioScale(parts: readonly Board[], bandTypes: readonly BandType[] = NO_BAND_TYPES): number {
-  const [f, s, t] = trioDrawings(parts, bandTypes);
-  return layoutTrio(f.bounds, s.bounds, t.bounds).scale;
+/** The trio's scale, as `PlanTrio` draws it: with `placed` (and the document's `units`, which size their labels) the
+ *  rows they need are fitted too (`fitPlaced`); none, or `[]`, is exactly the scale without them. */
+export function trioScale(parts: readonly Board[], bandTypes?: readonly BandType[]): number;
+export function trioScale(parts: readonly Board[], bandTypes: readonly BandType[], placed: readonly PlacedDimension[], units: Units): number;
+export function trioScale(parts: readonly Board[], bandTypes: readonly BandType[] = NO_BAND_TYPES, placed?: readonly PlacedDimension[], units?: Units): number {
+  const lines = placed && placed.length > 0 && units ? placedDimLines(parts, placed, units) : null;
+  return fitPlaced(trioDrawings(parts, bandTypes), lines).lay.scale;
 }
 
 /** Front, side and plan of `parts`, third-angle, one scale, dimensioned (spec §5.2), and, when `keyed`, the features of
  *  those parts as lettered tags with a key list (feature callouts spec §4). Memoised on its props (fu 263): a tick of the
  *  sheet's Explode slider re-renders the sheet, never these — so `keyed` must be a stable set. */
-export const PlanTrio = memo(function PlanTrio({ parts, units, label, keyed, section, bandTypes = NO_BAND_TYPES, lines }: {
+export const PlanTrio = memo(function PlanTrio({ parts, units, label, keyed, section, bandTypes = NO_BAND_TYPES, lines, placed }: {
   parts: readonly Board[]; units: Units; label: string; keyed?: ReadonlySet<string>; section?: Section | null;
   /** The project's band types (`doc.bandTypes`): glue lines and band keys (edge banding chunk 2). */
   bandTypes?: readonly BandType[];
   /** The project's construction lines, when the sheet's box is ticked; absent or empty draws exactly as before. Keep it a stable array (the memo). */
   lines?: readonly AnyLine[];
+  /** The project's placed dimensions (`doc.dimensions`), the PIECE trio only (placed-dimensions spec §6); absent or empty
+   *  draws exactly as before. Keep it a stable array (the memo). */
+  placed?: readonly PlacedDimension[];
 }) {
   const views = useMemo(() => {
     const ds = trioDrawings(parts, bandTypes);
     return [FRONT, SIDE, TOP].map((view: View, i) => ({ view, d: ds[i]!, dims: dimensionView(parts, view, units) }));
   }, [parts, units, bandTypes]);
   const [front, side, top] = views as [typeof views[0], typeof views[0], typeof views[0]];
-  const lay = layoutTrio(front.d.bounds, side.d.bounds, top.d.bounds);
+  const placedLines = useMemo(() => (placed && placed.length > 0 ? placedDimLines(parts, placed, units) : null), [parts, placed, units]);
+  const fit = useMemo(() => fitPlaced(trioDrawings(parts, bandTypes), placedLines), [parts, bandTypes, placedLines]);
+  const lay = fit.lay;
   const notes: string[] = [];
-  const draw = (x: typeof front, at: Placement) => {
+  const draw = (x: typeof front, at: Placement, placedH?: Packed, placedV?: Packed) => {
     const h = fitChain(x.dims.horizontal, lay.scale);
     const v = fitChain(x.dims.vertical, lay.scale);
     for (const n of [h.note, v.note]) if (n) notes.push(`${x.view.title}: ${n}`);
     return <Elevation key={x.view.title} d={x.d} at={at} scale={lay.scale} view={x.view} lines={lines && lines.length > 0 ? lines : undefined}
       h={{ overall: x.dims.horizontal.overall, chain: h.chain }}
-      v={{ overall: x.dims.vertical.overall, chain: v.chain }} />;
+      v={{ overall: x.dims.vertical.overall, chain: v.chain }}
+      placedH={placedH} placedV={placedV} />;
   };
-  const drawn = [draw(top, lay.top), draw(front, lay.front), draw(side, lay.side)];
+  const drawn = [draw(top, lay.top), draw(front, lay.front, fit.frontH, fit.frontV), draw(side, lay.side, fit.sideH)];
   const marked = section ? (markedView(section) === 'top' ? { x: top, at: lay.top } : { x: front, at: lay.front }) : null;
   const line = section && marked ? cuttingLine(section, marked.x.view, marked.x.d) : null;
   const features = useMemo(() => (keyed ? parts.filter((b) => keyed.has(b.id)).flatMap((b) => partFeatures(b, units, bandTypes)) : []), [parts, units, keyed, bandTypes]);
-  // `lay` is a pure function of `views`.
+  // `lay` is a pure function of `views` and `fit`.
   const keys = useMemo(() => planKeys(features,
     [{ view: TOP, d: top.d, at: lay.top }, { view: FRONT, d: front.d, at: lay.front }, { view: SIDE, d: side.d, at: lay.side }],
-    lay.scale, lay), [features, views]); // eslint-disable-line react-hooks/exhaustive-deps
+    lay.scale, lay), [features, views, fit]); // eslint-disable-line react-hooks/exhaustive-deps
   // Splayed legs §6.2: each keyed leaning part's note, once per sheet (the keying is the feature callouts'), built in the
   // document layer (inv 19); listed here only. Two same-named parts may read alike, so the list keys by position.
   const leaning = useMemo(() => leanNotes(parts, keyed), [parts, keyed]);
   notes.push(...leaning);
   if (keys.notShown.length > 0) notes.push(`Not shown in these views: ${keys.notShown.join('; ')}.`);
   if (keys.unkeyed.length > 0) notes.push(`Not keyed (no room): ${keys.unkeyed.join(', ')}.`);
+  notes.push(...fit.notes);
+  if (placedLines && placedLines.detached > 0) notes.push(detachedNote(placedLines.detached));
   return (
     <figure className="plans-figure-wrap">
       <svg className="plans-figure" viewBox={`0 0 ${lay.width} ${lay.height}`} style={pageWidth(lay.width)} fontSize={LABEL_SIZE}

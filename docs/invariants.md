@@ -216,7 +216,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     (`Instance.definition`, `ShapedBoard.shape`) are resolved by DROPPING the duplicate or
     the dangling part, never by re-minting, so nothing is rewritten. A future field pointing
     at a board by id breaks the single-pass repair. **`views[].hidden` is exempt: it is a hint, never a reference** — load never
-    repairs it, a missing id is skipped on restore, and Group/Ungroup re-key it in the same edit (saved views spec §2).
+    repairs it, a missing id is skipped on restore, and Group/Ungroup re-key it in the same edit (saved views spec §2). **A placed dimension's anchor `part` (schema 33, inv 65) is exempt the same way:** a hint resolved at read time, never repaired or dropped
+    on load (a missing part detaches the dimension), re-keyed by Group/Ungroup in the same edit; dimension ids go through `takeId` in their own scope.
 34. **`gesturing`/`gestureSnapshotTaken` are store state so `replaceDocument` can reset
     them — the only reset.** **PROHIBITION: they must not join `restore`'s clear list, and
     no component may read either.** A test of this asserts an undo entry, never a flag.
@@ -2009,3 +2010,75 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     **PROHIBITION: do not stretch a feature with `resizeEnd`'s rebase (it keeps far features in the world, which breaks every joint
     past the line), and do not let `writeBackParts` split a definition or a Shape silently.**
     Follow-ups 545–555.
+
+65. **A placed dimension stores WHAT it measures, never its value: two anchors and a world axis (schema 33; fu 253; spec
+    `2026-10-31-sloyd-placed-dimensions-design.md`).** `SloydDocument.dimensions: PlacedDimension[]` (`{ id, a, b, axis }`; always present,
+    `[]` when none), each anchor exactly one of `{ part, frac }`, `{ part, local }`, `{ at }` (`types.ts`).
+    - **`placedDims.ts` holds the ONE resolver, `resolveAnchor(parts, anchor)`, and the ONE converter the other way, `anchorFor(parts, p)`.**
+      `parts` is `worldParts(doc)`, read once per render. `frac` is a fraction (0, ½ or 1) of each of the part's OWN dimensions, scaled by
+      `geometryBoard`'s CURRENT size (the size the lattice uses), so it FOLLOWS a resize: a corner stays the corner. `local` is a station
+      in the part's own space from its min corner, so it keeps its station under a resize, as the features it sits on do (inv 56). Both
+      map through `toWorld` (inv 44, the lean composed, inv 57 R1), so both follow moves, turns, mirrors and leans. `{ at }` is a fixed
+      world point (a guide point, a line, a crossing, a line-face hit, a stepped `offset`). A missing part resolves to `null`: the
+      dimension is DETACHED.
+    - **`anchorFor` decides by geometry, not by `kind`:** a board-owned point (`owner.type === 'board'`) whose every part coordinate is
+      within `DIM_EPS` (1e-9) of 0, half or the full size is `frac`, else `local`; a hole centre that is also a lattice point is `frac`
+      (spec call 10, accepted, fu 621). It returns `DimAnchor | null`: `null` for a board-owned point whose part is not in `parts`, NEVER a
+      silent `{ at }` (Amended ruling 6). Guide-owned and `offset` points are `{ at }`. `resolveAnchor(anchorFor(p)) ≈ p.at` within 1e-9
+      for every point `snapPointsFor` offers (board and cut points; Amended ruling 5), tested over turned, mirrored, leaning (`chiralPart`),
+      holed and cut fixtures.
+    - **The value is never stored:** `dimensionValue` is `|resolve(b)[axis] − resolve(a)[axis]|`, formatted for display only (invs 18, 25,
+      52); the interface has no value field. A resize changes the label.
+    - **Keeping one: D in the Tape tool, no new tool.** D (in `App`'s ONE keydown effect, inv 27, `e.key` only) keeps the held anchor →
+      hover as a dimension. Axis: the locked one; else the one world axis the points differ on by more than `DIM_EPS`; two or three with
+      none locked refuses (`Lock an axis (X, Y or Z) to keep a dimension.`: guessing would print a number the user did not mean); a
+      zero value refuses (`The two points are level along X.`); a typed distance pending in the box refuses (`Clear the typed distance to
+      keep a dimension.`: the preview shows the offset point, and D would keep the raw hover). The ONE action is `keepTapeDimension()`
+      (`store.ts`), called by App's branch and by TapeReadout's focused-box twin, which takes D only while the box is EMPTY (inv 27's
+      forced pattern, as X/Y/Z and Escape: the window listener never sees a key typed in the box; inv 28: the hint offers D there). Every
+      refusal is decided before `edit()` (inv 4). `addDimension` is ONE
+      `edit()`, ONE undo entry, and touches neither the held points nor the selection (none of inv 24's three reasons applies), so a chain
+      of dimensions can be kept from one anchor. The refusal is `tapeNotice`, which is SELF-INVALIDATING: `{ text, anchor, hover, axis, typed }`
+      captures the held objects and the typed text it was raised against and `shownTapeNotice` (the ONE reader) returns its text only while
+      `tapeAnchor` and `tapeHover` are still those objects (`===`), `tapeAxis` is equal and `tapeTyped` is equal (inv 28: typing or
+      clearing the box re-answers D, so the notice goes); no site clears it, `setTapeTyped` included (Amended rulings 7, 16).
+    - **Load (`validateDimensions`)** DROPS a malformed entry (a non-string id, an `axis` outside x/y/z, an anchor that is none of the three
+      shapes, a `frac` value outside 0/0.5/1, a non-finite number) and KEEPS a well-formed one whose part is gone. Ids by `takeId` in their
+      own scope (inv 33). **A `part` is a hint, resolved at read time and never repaired or dropped on load** (the `views[].hidden`
+      exception to inv 33). No v32→v33 step; the bump exists for the refusal gate (a 32 build would rebuild the document without
+      `dimensions` and write the project back without them).
+    - **Edits.** Group and Ungroup re-key every `part` with the same `rekey` in the SAME edit (`rekeyDimensions`, in `edit()`'s document, as
+      `rekeyViews` does for `hidden`). Deleting a part leaves its dimensions detached and listed: safe ONLY because of TWO guarantees,
+      each pinned by tests, so a different part never lands at a detached anchor's path; the store does not hunt dimensions down on every
+      path that removes a part. (1) `nextId` never reuses an id (`id_<Date.now()>_<counter>`), so a NEW part never resolves one. (2) Ungroup
+      KEEPS a child's id when it is free, and a shared definition's part ids are the same in every copy, so a flat path CAN come back (a
+      deleted root `b1`, then Ungroup of a copy holding `b1`; or two copies, the first's ungrouped `b1` deleted, then the second ungrouped):
+      `ungroupItem`'s `fresh()` therefore treats as TAKEN every id whose landing path, under any placement of the container, a dimension
+      anchor names or lies under (a lifted assembly's parts), and re-mints it (Amended (build) ruling 13). An anchor on the moving child
+      names its CURRENT path, never a landing path, so it re-keys onto the child as before. Every other path that puts an item in a new
+      container mints its own id (Group's assembly, Duplicate, Copy in a row, Copy mirrored, Add stretcher) or keeps every path (Make
+      Unique). Undoing the delete re-attaches. Duplicate, Copy in a row, Link, Stretch, Align, Joinery and
+      Repair never copy, move or re-anchor a dimension (a joint that moves a `local` anchor's feature leaves it at its stored station).
+      Generate's output starts with `dimensions: []` (the design schema is untouched); Refine's result starts with none (fu 619).
+    - **Nothing disappears silently.** A detached dimension is drawn nowhere in the viewport; the list row reads `(part deleted)` (an end
+      without a name reads `a deleted part`, Amended ruling 10) and stays deletable; the sheet's notes say `1 placed dimension not drawn —
+      its part was deleted`. A dimension on a hidden part is not drawn in the viewport (draw-only, inv 43), reads `(hidden)` in the list and
+      still prints. Not drawn while exploded; not drawn in Save image's clean frame (Amended ruling 9, fu 622: its labels are drei `Html`);
+      not pickable and not a snap source (`raycast={() => null}`); the section cut does not clip it.
+    - **The Plans sheet.** `placedDimLines(parts, dims, units)` (the label string is assembled THERE, inv 19: `formatLengthBare`, bare mm in
+      metric, inv 52) routes X to Front along the paper, Y to Front up it, Z to Side along it (Side's right is −Z); Plan gets none. They
+      print in the PIECE's trio only, always (no checkbox), on the same side as that axis's overall dimension, in rows beyond it
+      (`packPlaced`, `panels/planDims.ts`): sorted by occupied start, a row reused when the gap is at least `DIM_LABEL_PAD`; a label that
+      fits its span is centred in it, else it sits by ROOM (past `to`, else before `from`, else past `to` with the layout reserving the
+      overhang, so no label clips: Amended ruling 3). **At most `PLACED_ROWS_MAX` (6) rows per band** (front-below, front-right,
+      side-below): a line that would open a 7th is not drawn and the figure's notes name it (`noRoomNote`); one whose span or an anchor's
+      projection lies outside its view's drawing bounds (beyond `DIM_EPS`) is not drawn and is noted (`offDrawingNote`; Amended ruling 4,
+      decided before packing). `trioScale(parts, bandTypes, placed?, units?)` and `layoutTrio`'s rows count the rows in the scale, and
+      `fitPlaced` re-packs at each new scale until the row counts hold (rows and reserves only grow, so it terminates). **A dimension-free
+      project's sheet and drawings are byte for byte as before** (pinned; its file gains only `dimensions: []` and version 33).
+    - **The `→ units` edge:** `placedDims.ts` imports `units/length` for `placedDimLines`' labels alone (`formatLengthBare`); the viewport
+      and the list format the value with `formatLength`, the document's own `Units`.
+    - **Left out on purpose (fu 615–624):** a per-dimension view, assembly figures, dragging, aligned/angle/radius/diameter, selecting in
+      the viewport, Refine carrying them, a typed offset, an ordinate style, widening the bounds for off-drawing anchors.
+    **PROHIBITION: never store a dimension's value, and never resolve an anchor anywhere but `resolveAnchor`.**
+    Follow-ups 615–627.

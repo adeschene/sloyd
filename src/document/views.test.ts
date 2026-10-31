@@ -16,7 +16,7 @@ const load = (views: unknown) => migrateDocument({ ...createDocument('T'), views
 describe('schema 29: SavedView (saved views spec §2)', () => {
   it('createDocument has no views', () => {
     expect(createDocument().views).toEqual([]);
-    expect(CURRENT_VERSION).toBe(32);
+    expect(CURRENT_VERSION).toBe(33);
   });
 
   it('a 28 file loads with views []', () => {
@@ -24,8 +24,8 @@ describe('schema 29: SavedView (saved views spec §2)', () => {
     expect(migrateDocument({ ...rest, version: 28 }).views).toEqual([]);
   });
 
-  it('a 30 file is refused', () => {
-    expect(() => migrateDocument({ ...createDocument('T'), version: 33 })).toThrow(/newer version of Sloyd/);
+  it('a file newer than the current version is refused', () => {
+    expect(() => migrateDocument({ ...createDocument('T'), version: 34 })).toThrow(/newer version of Sloyd/);
   });
 
   it('round trip', () => {

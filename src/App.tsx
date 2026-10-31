@@ -7,6 +7,7 @@ import { PartsList } from './panels/PartsList';
 import { Properties } from './panels/Properties';
 import { GuidesFooter } from './panels/GuidesFooter';
 import { ViewsFooter } from './panels/ViewsFooter';
+import { DimensionsFooter } from './panels/DimensionsFooter';
 import { FileMenu, SaveIndicator, StorageBanner } from './panels/FileMenu';
 import type { FileMenuHandle } from './panels/FileMenu';
 import { CutList } from './panels/CutList';
@@ -42,7 +43,7 @@ import { worldParts } from './document/tree';
 import { joineryRefusal as decideJoineryRefusal } from './generate/joints/tapers';
 import { FEATURE_CHECK_FAILED, featureAllowed } from './generate/joints/featureZones';
 import { storage } from './storage';
-import { useStore } from './store/store';
+import { keepTapeDimension, useStore } from './store/store';
 
 export default function App() {
   const undo = useStore((s) => s.undo);
@@ -727,6 +728,15 @@ export default function App() {
         return;
       }
 
+      // D keeps the Tape measurement as a placed dimension (placed-dimensions spec §3). The modifier test is part of
+      // the condition, so Ctrl+D (the browser's bookmark) falls through untouched, as does D with no anchor and hover.
+      // The key is NOT in the type-anywhere capture (`canBeginLength`: digits, '.' and '-' only).
+      // `keepTapeDimension` is the ONE action, shared with TapeReadout's focused-box twin.
+      if ((e.key === 'd' || e.key === 'D') && !e.ctrlKey && !e.metaKey && !e.altKey && keepTapeDimension()) {
+        e.preventDefault();
+        return;
+      }
+
       // R toggles X-ray (x-ray spec §5), the same shape as M and T. Modifier
       // chords are left alone — Ctrl+R and Cmd+R reload the page.
       if (e.key === 'r' || e.key === 'R') {
@@ -1071,6 +1081,7 @@ export default function App() {
             */}
             <GuidesFooter key={activeId} />
             {/* Not `key={activeId}`: sibling keys must differ, or React merges the two footers. */}
+            <DimensionsFooter key={`dims-${activeId}`} />
             <ViewsFooter key={`views-${activeId}`} getCamera={() => viewportRef.current?.getCamera() ?? null} onGoTo={goToSavedView} />
           </aside>
         </main>

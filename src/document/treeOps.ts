@@ -176,8 +176,8 @@ export function groupItems(doc: SloydDocument, container: string | null, paths: 
  * Move an instance's children up into its parent (spec §4.1, §10). Parts go
  * through placeBoard, the same one step worldParts takes, so they come out
  * bit-identical; a nested instance's frame is folded with placeInstance. A
- * child id taken in the parent is re-minted, a taken name deduped; the
- * definition is pruned.
+ * child id taken in the parent, or landing at a path a dimension anchor names,
+ * is re-minted, a taken name deduped; the definition is pruned.
  */
 export function ungroupItem(doc: SloydDocument, path: string):
   { doc: SloydDocument; children: string[]; rekey: Rekey; lift: Lift } | null {
@@ -193,9 +193,19 @@ export function ungroupItem(doc: SloydDocument, path: string):
   const keptInstances = c.instances.filter((i) => i.id !== inst.id);
   const taken: Named[] = [...c.boards, ...keptInstances];
   const seen = new Set(taken.map((t) => t.id));
+  // An id is also TAKEN when the path it would land at, under any placement of the container, is one a dimension
+  // anchor names, or lies under one (a lifted assembly's parts): a detached anchor must never re-attach to a different
+  // part that lands at its old path (placed-dimensions spec §7, Amended (build) ruling 13; inv 65). An anchor on the
+  // moving child itself names its CURRENT path, under `inst.id`, never a landing path, so it re-keys onto the child.
+  const anchored = new Set(doc.dimensions.flatMap((d) => [d.a, d.b]).flatMap((a) => ('part' in a ? [a.part] : [])));
+  const placements = containerPlacements(doc, container);
+  const named = (id: string) => anchored.size > 0 && placements.some((at) => {
+    const landing = joinPath(at, id);
+    return [...anchored].some((p) => p === landing || p.startsWith(`${landing}/`));
+  });
   const pairs: Array<readonly [string, string]> = [];
   const fresh = (id: string) => {
-    const out = seen.has(id) ? nextId() : id;
+    const out = seen.has(id) || named(id) ? nextId() : id;
     seen.add(out);
     pairs.push([joinPath(inst.id, id), out]);
     return out;

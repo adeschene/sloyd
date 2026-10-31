@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { parseLength, formatLength } from '../units/length';
 import { heldRoot, isAnyLine, newLineOf, offsetPoint, sameNewLine, tapeAxisFromKey, tapeLineFor, towardFor } from '../document/document';
-import { useStore } from '../store/store';
+import { keepTapeDimension, useStore, shownTapeNotice } from '../store/store';
+import { dimensionAxis } from '../document/placedDims';
 
 /**
  * WHY the refusal is a union rather than a boolean — follow-up 144, closed here
@@ -54,6 +55,8 @@ export function TapeReadout() {
   const axis = useStore((s) => s.tapeAxis);
   // Subscribed so the 'that line is already there' hint follows the document (inv 15's rule: a value read in render is a subscription).
   const guides = useStore((s) => s.doc.guides);
+  // Placed dimensions (spec §3): D's refusal. Read ONLY through `shownTapeNotice`, which drops it when the held points or axis change.
+  const notice = useStore(shownTapeNotice);
   const [error, setError] = useState<TapeError>(null);
   const input = useRef<HTMLInputElement>(null);
 
@@ -129,6 +132,23 @@ export function TapeReadout() {
   // Derived, not an error state (plan A1): the line a bare Enter would place, and whether it is already there.
   const pending = tapeLineFor(anchor.at, axis, text, hovered?.at ?? null);
   const duplicate = pending !== null && guides.some((g) => isAnyLine(g) && sameNewLine(newLineOf(g), pending));
+
+  const base = axis
+    ? pending
+      ? duplicate
+        ? `Along ${axis.toUpperCase()} — that line is already there; type a distance`
+        : `Along ${axis.toUpperCase()} — Enter for a line, or type a distance`
+      : `Along ${axis.toUpperCase()} — Enter to place, Shift+Enter to move the anchor there`
+    : pending
+      ? duplicate
+        ? 'That line is already there; type a distance'
+        : 'Enter for a line through both points, or type a distance'
+      : hovered && text.trim() !== ''
+        ? 'Enter to place, Shift+Enter to move the anchor there'
+        : 'Type a distance, Enter to place';
+  // Placed dimensions (spec §3): D would succeed — a hover, nothing typed, and an axis that decides.
+  const keepable = hovered !== null && text.trim() === '' && 'axis' in dimensionAxis(anchor.at, hovered.at, axis);
+  const hint = keepable ? `${base} · D keeps it as a dimension` : base;
 
   // `step` is Shift+Enter: with a distance typed, the anchor MOVES to the offset point (kind 'offset', its `base` the root it
   // started from) instead of a guide point being placed, so 'a line 3 in from that edge' is one gesture (spec §4.1).
@@ -221,6 +241,13 @@ export function TapeReadout() {
               useStore.getState().setTapeAxis(axisKey);
               return;
             }
+            // D is the third key forced here (placed-dimensions spec §3, inv 28): with the box focused and EMPTY (after
+            // Shift+Enter, or backspaced) the hint offers D, and App's listener never sees it. The SAME action App calls,
+            // so the two cannot disagree; with text in the box D is a character like any other.
+            if ((e.key === 'd' || e.key === 'D') && !e.ctrlKey && !e.metaKey && !e.altKey && text.trim() === '' && keepTapeDimension()) {
+              e.preventDefault();
+              return;
+            }
             // Escape needs its own handler HERE, because App's window listener
             // early-returns on isTextEntry — which this input is. Without it,
             // Escape would do nothing at all while focus is in the box, and the
@@ -257,25 +284,13 @@ export function TapeReadout() {
         `.viewport-hint`, --ink-dim): it is read once and then permanently in the
         way, so it must not compete with the measured distance beside it.
       */}
-      {error ? (
+      {error || notice ? (
         <span className="tape-readout-hint tape-readout-error" data-testid="tape-readout-error">
-          {ERROR_TEXT[error]}
+          {error ? ERROR_TEXT[error] : notice}
         </span>
       ) : (
         <span className="tape-readout-hint">
-          {axis
-            ? pending
-              ? duplicate
-                ? `Along ${axis.toUpperCase()} — that line is already there; type a distance`
-                : `Along ${axis.toUpperCase()} — Enter for a line, or type a distance`
-              : `Along ${axis.toUpperCase()} — Enter to place, Shift+Enter to move the anchor there`
-            : pending
-              ? duplicate
-                ? 'That line is already there; type a distance'
-                : 'Enter for a line through both points, or type a distance'
-              : hovered && text.trim() !== ''
-                ? 'Enter to place, Shift+Enter to move the anchor there'
-                : 'Type a distance, Enter to place'}
+          {hint}
         </span>
       )}
     </div>

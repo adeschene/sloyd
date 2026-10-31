@@ -100,6 +100,25 @@ describe('ungroupItem (assemblies spec §4.1, §10)', () => {
     expect(names).toContain('Side (1)');
     expect(r.doc.definitions.map((d) => d.id)).toEqual(['d2']);
   });
+
+  it('re-mints a child whose landing path, or a path under it, a dimension anchor names (inv 65, Amended (build) 13)', () => {
+    const doc = assemblyDoc();
+    const corner = { length: 0, width: 0, thickness: 0 } as const;
+    const anchor = (part: string) => ({ part, frac: corner });
+    const withDims = (...parts: string[]): SloydDocument => ({
+      ...doc, dimensions: parts.map((p, i) => ({ id: `dim${i}`, a: { at: [0, 0, 0] as [number, number, number] }, b: anchor(p), axis: 'x' as const })),
+    });
+    const kept = (r: ReturnType<typeof ungroupItem>) => new Set(childrenOf(r!.doc, null));
+    // Detached anchors at the landing paths of a part and of a nested assembly's part: both re-minted.
+    const r = ungroupItem(withDims('b1', 'i2/b3'), 'i1')!;
+    expect(kept(r).has('b1')).toBe(false);
+    expect(kept(r).has('i2')).toBe(false);
+    expect(kept(r).has('b2')).toBe(true);
+    // An anchor on the moving child itself (its current path) never blocks it: the child keeps its id.
+    const own = ungroupItem(withDims('i1/b1', 'i1/i2/b3'), 'i1')!;
+    expect(kept(own).has('b1')).toBe(true);
+    expect(kept(own).has('i2')).toBe(true);
+  });
 });
 
 describe('ungroupItem refusals (fu 228)', () => {

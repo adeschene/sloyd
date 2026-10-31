@@ -243,11 +243,13 @@ it**. Each dimension is an interval `[lo, hi]` along the view direction, so:
   `rekey` in the same edit, so the dimension follows its part. (Hidden ids are re-keyed in view state; dimensions are
   document data, so they are re-keyed in the document passed to `edit()`.) A test pins a dimension surviving a
   Group/Ungroup round trip with the same value.
-- **Deleting a part** leaves its dimensions **detached**, and they stay listed. **(call)** This is safe ONLY because an
-  id is never reused: `ids.ts` `nextId` mints `id_<Date.now()>_<counter>`, so no later part takes a deleted part's
-  path, and a detached dimension cannot silently re-attach to an unrelated part and print its number. (`views[].hidden`
-  is a weaker precedent: a wrong hide is cosmetic, a wrong dimension is not; the guarantee here is the id minting,
-  and a test pins that a new part never resolves a detached anchor.) The store does not hunt
+- **Deleting a part** leaves its dimensions **detached**, and they stay listed. **(call)** This is safe ONLY because no
+  later part takes a deleted part's path, so a detached dimension cannot silently re-attach to an unrelated part and
+  print its number. TWO guarantees make that so (Amended (build) ruling 13): `ids.ts` `nextId` never reuses an id
+  (`id_<Date.now()>_<counter>`), so a NEW part never resolves a detached anchor; and Ungroup, which KEEPS a child's
+  id when it is free (a shared definition's part ids are the same in every copy), never lands a path an anchor names:
+  `ungroupItem`'s `fresh()` re-mints such an id. (`views[].hidden` is a weaker precedent: a wrong hide is cosmetic, a
+  wrong dimension is not; tests pin both guarantees.) The store does not hunt
   dimensions down on every path that removes a part: there are many (delete, definition edits that remove a part from
   every copy, Ungroup's dissolve), and missing one would leave a silent dangling reference anyway. A detached row is
   visible and deletable, and undoing the delete re-attaches it, because the id comes back.
@@ -363,3 +365,128 @@ loading the page only on production. Rollback: `4635ae34` refuses schema 33 proj
 - A typed offset joining D.
 - fu 258 (live viewport dimensions) gets a note: placed dimensions now draw in the viewport; automatic ones still do not.
 - An anchor that knows a coincident feature (a hole on a face centre) from the lattice point.
+
+## Amended (build)
+
+Recorded by the build (2026-10-31). **Not yet approved by the user.**
+
+**Rulings**
+1. **Task 6: packing needs only `DIM_LABEL_PAD` between occupied spans** (§6.2 said "a gap of at least a label's width plus
+   `DIM_LABEL_PAD`"). A label that fits its span is centred inside it, so the span itself already holds the label; only the
+   pad keeps two neighbours' ticks and labels apart. A label that does not fit (`labelWidth + DIM_LABEL_PAD` > the span) is
+   drawn past `hi`, and its row reserves `EXT_GAP + labelWidth` beyond `hi` before the pad. `packPlaced` in
+   `panels/planDims.ts`; the fit loop (`fitPlaced`) re-packs at each new scale until the row counts hold.
+2. **Task 6 fix round (controller ruling): at most `PLACED_ROWS_MAX = 6` rows per band** (front-below, front-right,
+   side-below; `panels/planLayout.ts`). Without a floor the rows could take the whole page and the scale go negative (shelf
+   heights all measured from the floor share `from = 0`, so each opens a row). A line that would open a 7th row is not
+   drawn, and the figure's notes say so per view, naming each by axis and its own label:
+   `Front: 2 placed dimensions not drawn — no room (Y 24, Y 30)` (`1 placed dimension …` singular; `noRoomNote` in
+   `panels/planDims.ts`). With every band full the trio still has positive room, so the scale stays positive. `fitPlaced`
+   keeps the larger of reserved and asked-for rows per band, so with the cap it settles within `3·6 + 1` passes.
+3. **Task 6 fix rounds 1–2 (controller rulings): a past label sits by ROOM, and is never clipped.** Room is measured toward
+   the next thing on the paper, rows and reserves included:
+   - front-H: after `to`, the front–side gap up to the side view's own left band; before `from`, the viewBox's left edge;
+   - side-H: after `to`, the viewBox's right edge; before `from`, back to the side view's left band;
+   - front-V: after `to` (up), the whole plan–front gap, `DIM_BAND + VIEW_GAP + DIM_BAND`; before `from` (down), the
+     viewBox's bottom edge, the rows below included.
+
+   The label goes just past `to` when it fits the room after; else just before `from` (end-anchored at `from − EXT_GAP`)
+   when it fits the room before; else past `to` all the same, and the layout RESERVES the overhang as extra margin on that
+   side (`layoutTrio`'s `overGap`, `overRight`, `overTop`, in whole steps of 8 units), so the viewBox grows and the scale's
+   band sums count it. Zero overhang is exactly the layout without it. Packing uses the occupied span, so a label before
+   `from` occupies `[from·s − EXT_GAP − w, to·s]`, and sorts by the occupied START, then `from`, `to`, input order (ruling 1's
+   order whenever no label is before). `fitPlaced` still terminates: rows and reserves only grow, rows are capped, and an
+   overhang is bounded (labels are fixed width; a falling scale only shortens spans). Round 1's fixed limits (`DIM_BAND`
+   above the front) flipped a 1-1/2" Y label at the front's top off the viewBox's bottom; this replaces them.
+4. **Task 6 fix round 3 (controller ruling): a placed dimension reaching past its view's drawing is not drawn.** When its
+   span `[from, to]`, or either anchor's projection across it, lies outside the view's drawing bounds by more than `1e-9`
+   inches (an `{at}` anchor off the piece: a guide point, a line, an offset), the sheet does not draw it, and the figure's
+   notes say so per view, named as the "no room" note names them: `Front: 1 placed dimension not drawn — it reaches past
+   the drawing (X 8")` (`2 placed dimensions … — they reach past the drawing (…)`). No part is drawn there, so the line
+   would hang in air or run off the paper; the drawing bounds are never widened, which would move every view's alignment.
+   It is decided before packing, so one also over the row cap is reported once, as off the drawing. The same round leaves
+   `DIM_LABEL_PAD` between front-H's room after `to` and side-H's room before `from`, and `fitPlaced`'s pass guard throws in
+   development and otherwise lays out once more with what was asked, so an overhang is never left unreserved.
+5. **Task 2 (controller ruling): `anchorFor` and the round trip cover every pickable point, `snapPointsFor`, not only
+   `boardSnapPoints`.** §2.2 said "every point `boardSnapPoints` produces"; the Tape also offers a rectangular cut's corners,
+   and a test over `boardSnapPoints` alone saw no cut point. The widened round trip (`resolveAnchor(anchorFor(p)) ≈ p.at`, 1e-9)
+   runs over the board and cut points of the turned, mirrored, leaning, holed and cut fixtures. Cost if wrong: a few extra tests.
+6. **Task 2 (controller ruling): `anchorFor` returns `DimAnchor | null`.** `null` for a board-owned point whose part is not among
+   `parts`; it never falls back to a silent `{at}`, which would print a world point where a part point was meant (anti-goal 2).
+   §2.2 gave board-owned points only `frac` and `local`. `addDimension` refuses on `null` (writes nothing, returns false).
+   Cost if wrong: one signature.
+7. **Task 3 (controller ruling): the tape notice is self-invalidating, not cleared at every site.** The first build cleared
+   `tapeNotice` wherever `tapeAnchor` was nulled and missed four held-point sites (`dropHeldIfGone`, `dropHeldOwnedBy`, the
+   doomed drop, `rekeyHeld`). Instead `tapeNotice` is `{ text, anchor, hover, axis } | null`, capturing the held objects it was
+   raised against, and `shownTapeNotice(state)` is its ONE reader: the text only while `tapeAnchor` and `tapeHover` are still
+   those objects (`===`) and `tapeAxis` is equal. No per-site clear remains, so a future held-point writer cannot miss one.
+   §3 said only that a refusal shows "in the readout's message line"; this fixes its lifetime. Cost if wrong: a reader that
+   skips the helper shows a stale refusal.
+8. **Task 4 (controller ruling): the leaning D integration test anchors on a leaning part's top lattice corner.** The plan asked
+   for two corners of a leaning edge sharing X and Z exactly, which is impossible (an edge of a leaning part is slanted; a
+   zero-splay lean is not stored). The test takes a leaning part's top lattice corner (from `boardSnapPoints`) as the anchor and a
+   guide-owned hover at that corner's X and Z (+1e-13 on X) with Y lowered by 10, and asserts D adds axis `y`: it exercises
+   `DIM_EPS` at the D site. The frac-versus-local noise case stays Task 2's. Cost if wrong: one weaker integration test.
+9. **Task 5 (controller ruling): placed dimensions are NOT drawn in Save image's clean frame.** §4 listed what is not drawn but not
+   this. The labels are drei `Html` elements, which never reach `canvas.toDataURL`, so a saved image would show unlabelled lines,
+   a number missing without saying so (anti-goal 1). Recorded as a follow-up (dimensions in Save image). Cost if wrong: a user
+   wanting dimensions in a PNG waits for the follow-up.
+10. **Task 5 (controller ruling): a detached end names itself `a deleted part` in the list row.** §5 fixes only the row's
+    `(part deleted)` suffix; an end whose part is gone has no display name, so the span reads `Top to a deleted part`
+    (`DimensionsList`). Cost if wrong: one string.
+11. **Task 6 (controller ruling): `trioScale(parts, bandTypes, placed?, units?)`.** Placed rows need label widths to reserve their
+    room, so `units` travels with `placed`; both omitted is today's call exactly (a dimension-free sheet is byte for byte as before,
+    pinned). `PlansSheet`'s section keeps the piece trio's scale through the same call. Cost if wrong: a signature tweak.
+12. **Task 1 (controller clarification): §2.3 has no id-shape rule beyond `takeId`.** `validateDimensions` drops a non-string id;
+    any string id goes through `takeId` (a `/` is re-minted, inv 33), and the build's literals are clean. No further rule added.
+13. **Final review (controller ruling, Critical): Ungroup never lands a path a dimension anchor names.** §7 rested "deleting a
+    part detaches" on `nextId` alone, but `ungroupItem`'s `fresh()` keeps a definition child's own id unless the parent holds it,
+    and a shared definition's part ids are the same in every copy, so a flat path could come back: Drawer 1 and Drawer 2 copies of
+    one definition holding `b1`; Ungroup Drawer 1, keep X from a guide point to `b1`'s corner (30), delete `b1` (`(part deleted)`),
+    Ungroup Drawer 2 at +50: its part landed at root `b1` and the dimension read 80 with no note (likewise a deleted root `b1`,
+    then Ungroup of any copy holding `b1`). `fresh()` now treats as TAKEN every id whose landing path, under any placement of the
+    container, an anchor's `part` names or lies under (a lifted assembly's parts), and re-mints it. An anchor naming the moving
+    child's own CURRENT path is never a landing path, so it re-keys onto the child as before (spec call 4 kept). Every other path
+    putting an item in a new container mints its own id (Group's assembly, Duplicate, Copy in a row, Copy mirrored, Add
+    stretcher) or keeps every path (Make Unique). Cost if wrong: an ungrouped part gets a fresh id where it could have kept one.
+14. **Final review (controller ruling): D refuses while a typed distance is pending.** With `3` typed and the box blurred, the
+    preview shows the offset point but D kept the raw hover, and the hint (rightly) omitted D. D now refuses with `Clear the typed
+    distance to keep a dimension.` (through `setTapeNotice`). §3's "D keeps the hover point as it is" (fu 620) reads: D is
+    refused while anything is typed. Cost if wrong: one more key press (clear the box) before D.
+15. **Final review (controller ruling): D in the focused, EMPTY readout box keeps the dimension (inv 28).** After Shift+Enter (text
+    cleared, focus kept) or a backspace to empty, the hint said `· D keeps it as a dimension` but D typed `d`: App's listener
+    returns on `isTextEntry`. The box's `onKeyDown` takes D when its text is empty, the forced pattern X/Y/Z and Escape use there,
+    and both handlers call ONE action, `keepTapeDimension()` (`store.ts`). With text in the box D is a character. Cost if wrong:
+    a `d` cannot begin a typed length (no length begins with `d`).
+16. **Final re-review (approved by the user 2026-10-31 (apply the fix)): a tape notice never outlives the typed text it was raised
+    against (inv 28).** After ruling 14's `Clear the typed distance to keep a dimension.`, clearing the box left the notice shown while
+    D would now keep; and a `Lock an axis…` notice raised with nothing typed stayed shown after typing `3`. `setTapeNotice` also captures
+    `typed: tapeTyped`, and `shownTapeNotice` (still the ONE reader) adds `tapeTyped === typed` to ruling 7's condition. No clearing site
+    is added (`setTapeTyped` does not clear it). Cost if wrong: a notice hides on any keystroke in the box.
+
+**Spec text these rulings change** (the approved text above is kept; read it with these):
+- §2.2: "every point `boardSnapPoints` produces" reads "every pickable point (`snapPointsFor`)" (5); `anchorFor`'s return is
+  `DimAnchor | null` (6).
+- §3: the readout's refusal message line lives only while the held points it was raised against are unchanged (7); the
+  integration test for the axis tolerance is as in 8. "The builder checks that `TapeReadout`'s typed capture never takes `d`"
+  was done: `d` is read in `App`'s keydown only (`e.key`, so the key that types `d` is not matched by code).
+- §4: add "Not drawn in Save image's clean frame" (9).
+- §5: a detached end's name is `a deleted part` (10).
+- §6.2: at most `PLACED_ROWS_MAX = 6` rows per band, and "never dropped" holds for a label too wide for its span only (2);
+  the label side is chosen by room, never clipped (3, which replaced an earlier "before `from`" flip rule limited to the view's
+  outer edge); a dimension reaching past its view's drawing is not drawn and is noted (4); packing's gap is `DIM_LABEL_PAD` (1).
+  Anti-goal 1 ("nothing silently disappears") is kept by the notes in each case.
+- §3: D refuses while a distance is typed (14); D in the focused, empty box keeps the dimension, through one action shared with
+  App's key (15); the refusal notice also lives only while the typed text is unchanged (16).
+- §7: "safe ONLY because an id is never reused" names both guarantees, `nextId` and Ungroup's `fresh()` (13).
+- §9 / inv 65: "never resolve an anchor anywhere but `resolveAnchor`" still holds. `placedDimLines`, `dimensionValue` and
+  `rekeyDimensions` all go through it; `anchorFor` is the one converter the other way. Nothing in the build calls `toWorld` for an
+  anchor elsewhere.
+
+**Deferred** (record-only, fu 615–628; the SDD ledger's minors are listed whole in fu 627; the final-review wave fixed a D pressed
+with typed text pending (14) and the orphaned doc comment above `HEAD_NOT_WIDER`): a stale `hoveredDimension` after undo; the duplicate `worldParts` walk in
+`PlacedDims`; key tags that do not avoid placed rows (fu 625). Task 6's other three minors (the `FIT_PASSES` exit, the overhang
+wording, two labels meeting at their limits) were fixed in its round 3.
+
+**Owed to the user.** The dimension colour (`--dim-placed`, `#e0793a`) by eye; the 21 checks of
+`docs/browser-verification-placed-dimensions.md` (unrun); the Plans sheet print by eye; approval of rulings 1–15 above (16 is approved).

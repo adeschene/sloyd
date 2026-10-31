@@ -7,6 +7,12 @@ rediscovering it.
 
 Ordered by what I would actually do first.
 
+## Open, per round (index)
+
+Moved from `CLAUDE.md` 2026-10-31 (verbatim, plus the placed-dimensions round). The entries below are authoritative; this is the triage's open set by round.
+
+splayed legs 436 and 439 (ask first), 441 (by decision), 442, 443, 445; record-only 440, 446. Angled holes: 448 and 453 (ask first), 451, 452; record-only 455, 456, 469. Round tenons: 459, 463 and 467 (ask first); record-only 461, 462, 466. Square-set legs: record-only 472, 474. Stretchers: 479 (ask first); record-only 483. Box joints: 493 (pre-existing; ask first), 494; record-only 495. Dovetails: 504, 507 and 510 (ask first), 505, 506, 508, 509, 514, 515; record-only 513. Half-blind dovetails: 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521. Weight: 524 and 525 (ask first); record-only 523, 527. Part labels: 528, 529 and 531 (ask first); record-only 530, 533. Align: 534–536 and 537's gesture (ask first); record-only 538. X-ray: 539 (ask first); record-only 543. Saved views: 540–542 (ask first); record-only 544. Stretch: 550 (ask first); record-only 551–555. Glue-ups: record-only 565–567. Counterbores: 570 (exploded-iso step rims, an unapproved build ruling); record-only 574, 576 and 577 (575 closed; 576's residue is its other minors). Construction lines round 2: record-only 589 (590 closed, deployed). Selectable guides: 591 (deployed), 596 (a ruling); record-only 595. Cam-and-bolt: 606; record-only 597, 601, 604, 607, 608, 610, 611, 612. Placed dimensions (fu 253): 615–624 (ask first), 625–627 (record-only until seen), 628 (record-only; a drafting-style question for the user).
+
 ## Worth doing before v2 touches the same code
 
 **1. `loadAutoSaved` rejection has no regression test.** `src/App.tsx`'s restore effect
@@ -5392,6 +5398,7 @@ reader matches it to the cut list by eye. Spec §9, out of scope by decision.
 A dimension tool whose dimensions live in the document needs a schema bump (14) and a rollback cost; spec §9.
 - **Status:** open.
 **Status:** open (feature; needs a spec) (schema bump). (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-31 — placed dimensions (spec `2026-10-31-sloyd-placed-dimensions-design.md`, plan `…-placed-dimensions.md`, branch `placed-dims`, SCHEMA 33, inv 65): D in the Tape tool keeps a measurement as two anchors and an axis, drawn in the viewport, listed in a `Dimensions · N` footer, and printed on the Plans sheet's piece trio. Built and reviewed; not yet merged, browser-checked or deployed. Residue 615–627.
 
 **254. Real print-to-PDF of the Plans sheet is unverified.** Only `emulateMedia('print')` was driven (Playwright
 exposes no `pdf()`; the same limit as fu 70/79/84). Unconfirmed: page breaks and the ink on a real printer. The print
@@ -5432,6 +5439,7 @@ hatched Section A–A of the assembled piece follows it (`drawView`'s `section` 
 Tape tool and nothing automatic. Spec §9.
 - **Status:** open.
 **Status:** open (feature; needs a spec). (triaged 2026-10-16)
+**Status:** note 2026-10-31 (placed-dimensions round, fu 253): PLACED dimensions now draw in the viewport (inv 65, `viewport/PlacedDims.tsx`); the AUTOMATIC ones (the sheet's overall and chain dimensions) still do not. Still open.
 
 **259. Small gaps the plans-sheet round judged fine to leave.** Record-only; the task reviews' deferred minors.
 - **T1.** `hiddenSpan`'s positive-test comment says s=1 (it is s=sqrt(3)); `Math.max(0, s0)` / `Math.min(1, s1)` are
@@ -8712,3 +8720,82 @@ up". This partly undoes section 4.2's "never joined must not nag". Cheap remedy 
 the end). Cost if left: an unrelated bore moved (visible on the button and undoable). Fit spec Amended R10.
 **Status:** open (ask first; needs the user's ruling).
 **Status:** open (ask first): the user approved the behaviour as built (Amended R10, 2026-10-31); a remedy is a new request.
+
+## From the placed-dimensions round (fu 253) — 2026-10-31
+
+**615. Placed dimensions: choosing the view a dimension prints in, and placed dimensions on assembly figures.** A placed dimension prints in a fixed view
+per axis (X and Y in Front, Z in Side; spec §6.1) and only in the piece's trio. A per-dimension view choice, and the assembly figures, the ISO, the
+exploded figure and the section figure, are not built. Placed-dimensions spec §1 non-goals, §6.1.
+**Status:** open (feature; ask first).
+
+**616. Placed dimensions: dragging a dimension's row or offset.** The sheet packs rows itself (`packPlaced`) and the viewport draws the segment from A
+along the axis; neither can be dragged. Spec §1 non-goals.
+**Status:** open (feature; ask first).
+
+**617. Placed dimensions: aligned, angle, radius and diameter dimensions.** Every placed dimension measures along world X, Y or Z. Spec §1 non-goals.
+**Status:** open (feature; ask first).
+
+**618. Placed dimensions: selecting a dimension in the viewport.** The list is how you manage them (hover highlight, ✕). No click-select, no
+Properties panel. Spec §1 non-goals.
+**Status:** open (feature; ask first).
+
+**619. Refine carrying dimensions by flat name.** Refine re-mints its parts, so a result starts with no dimensions (spec §8, call 8); it carries
+`guides` but not `views` or `dimensions`. Carrying them by flat name, as the feature carry does (inv 56), would keep a project's dimensions across a Refine.
+**Status:** open (feature; ask first).
+
+**620. A typed offset joining D.** Digits typed in the Tape readout do not join the kept dimension: D keeps the hover point as it is (spec §3).
+**Status:** open (feature; record-only until asked). Since the final-review wave D REFUSES while a distance is typed (`Clear the typed distance to
+keep a dimension.`, spec Amended (build) ruling 14), so it never keeps the raw hover under an offset preview; joining the offset stays the feature.
+
+**621. An anchor that knows a coincident feature from the lattice point.** A feature point that coincides with a lattice point (a hole centred on a
+face) anchors as `frac`, so on a resize the dimension follows the face centre, not the hole (spec §2.2, call 10). The list and label show the new
+value, so it is never silent. A fix would need `anchorFor` to see the feature's kind, which the geometric test deliberately does not.
+**Status:** open (by decision for v1; record-only).
+
+**622. Dimensions in Save image.** Placed dimensions are not drawn in Save image's clean frame: their labels are drei `Html` elements, which
+`canvas.toDataURL` never captures, and unlabelled lines would be a number missing without saying so (spec Amended ruling 9). A fix is to draw the
+labels onto the capture canvas (or as sprites) in the clean frame.
+**Status:** open (feature; ask first).
+
+**623. An ordinate or baseline style for more than six overlapping rows.** `PLACED_ROWS_MAX` is 6 rows per band (front-below, front-right, side-below,
+`panels/planLayout.ts`); a dimension that would open a 7th is not drawn and the figure's notes name it (`Front: 2 placed dimensions not drawn — no
+room (Y 24, Y 30)`; spec Amended ruling 2). Shelf heights all measured from the floor share `from = 0`, so each opens a row; a baseline or ordinate
+style (one datum, labels stacked at the far end) would print them in one row. Cost if left: a 7th overlapping dimension is listed, not drawn.
+**Status:** open (feature; ask first).
+
+**624. Off-drawing anchors widening the drawing bounds.** A placed dimension with an `{at}` anchor off the piece (a guide point, a line, an offset past
+the piece) is not drawn on the sheet and the figure's notes say so (`it reaches past the drawing`; spec Amended ruling 4), because widening the bounds
+would move every view's alignment. A fix would widen the drawing bounds only when such a dimension exists (a dimension-free sheet byte for byte as before).
+**Status:** open (feature; ask first).
+
+**625. Key tags avoiding placed rows.** The Plans sheet's key tags (the piece's balloons and keys) do not avoid the placed rows, so a tag can sit on a
+row or a label. Seen only by the browser check; the check doc lists it. Task 6 deferred minor.
+**Status:** open (confirm by eye in the browser check; record-only until seen).
+
+**626. Front-H and front-V placed labels may meet (browser check).** Front-H's room after `to` and side-H's room before `from` now keep `DIM_LABEL_PAD`
+between them (Task 6 round 3). Whether a front-H label and a front-V label at the corner of the front view can meet is not pinned by a test; the
+sweep test bounds every label inside the viewBox, not apart from one another. Check by eye on a sheet with dimensions at the front's corner.
+**Status:** open (record-only until seen).
+
+**627. Placed dimensions: the build's deferred minors (the SDD ledger, by task).**
+- **Task 1.** `bandingLoad.test.ts:90`'s title still says v33 (its body loads 34) — **fixed in the final-review wave** (it and six more stale
+  version titles renamed to what they assert); no test for an anchor `{ part }` with neither `frac` nor `local`, nor
+  `{ part, at }`; no recorded RED run (process).
+- **Task 2.** Two coincident points with no axis lock refuse as "level along X" (the copy reads oddly; a copy-review item); no recorded RED run (process).
+- **Task 3.** `shownTapeNotice` sits between the head-refusal doc comment and `HEAD_NOT_WIDER` in `store.ts` (~line 66), orphaning that comment —
+  **fixed in the final-review wave** (moved above, beside `keepTapeDimension`);
+  `hoveredDimension` is stale after an undo removes the hovered dimension (harmless view state).
+- **Task 4.** D works with typed text pending while the hint omits its suffix (inv 28 flavour; spec §3 says D keeps the hover point as it is), for the
+  final review to triage — **fixed in the final-review wave** (D refuses: `Clear the typed distance to keep a dimension.`, Amended (build) ruling 14);
+  the `TapeReadout` suffix test derives its expectation from the tested condition — **fixed** (a fixed pair, each lock stated); the notice-clears test
+  does not assert the hint returns (still open).
+- **Task 5.** A duplicate `worldParts` walk in `PlacedDims` (per edit, not per frame).
+- **Task 6.** Fixed in its round 3: the `FIT_PASSES = 64` exit could return an unreserved overhang (the guard now throws in development and otherwise
+  lays out once more with what was asked); `fitPlaced`'s overhang wording; front-H's after-room and side-H's before-room meeting at one line (now
+  `DIM_LABEL_PAD` between). Still open: key tags do not avoid placed rows (fu 625).
+**Status:** open (record-only).
+
+**628. Extension lines crossing the drawing for interior anchors.** A placed dimension whose anchor lies inside the piece's outline (a shelf's top face,
+a rail's edge seen through the front) has its extension line drawn from the anchor out to the row, across the drawing's own lines. Whether to break
+the extension line at the outline, start it at the outline, or leave it is a drafting-style question for the user (final whole-branch review).
+**Status:** open (record-only; a drafting-style question for the user).

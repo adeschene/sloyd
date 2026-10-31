@@ -4,9 +4,9 @@ import { CURRENT_VERSION, createDocument, migrateDocument, isGuideLine, isGuideP
 const load = (guides: unknown[]) => migrateDocument({ ...createDocument('T'), version: 30, guides }).guides;
 
 describe('schema 31: construction lines (construction-lines spec §2)', () => {
-  it('is version 32 and refuses 33', () => {
-    expect(CURRENT_VERSION).toBe(32);
-    expect(() => migrateDocument({ ...createDocument('T'), version: 33 })).toThrow(/newer version of Sloyd/);
+  it('is the current version (33) and refuses a newer file', () => {
+    expect(CURRENT_VERSION).toBe(33);
+    expect(() => migrateDocument({ ...createDocument('T'), version: 34 })).toThrow(/newer version of Sloyd/);
   });
   it('loads a 30 file point unchanged, with no axis key', () => {
     const [g] = load([{ id: 'g1', at: [1, 2, 3] }]);

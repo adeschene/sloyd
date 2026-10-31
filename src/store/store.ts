@@ -39,8 +39,40 @@ import { pruneMaterials, upsertMaterials, materialUses } from '../document/mater
 import { MAX_ROW } from '../document/row';
 import { clickTarget } from './assemblyPick';
 import { rekeyViews } from '../document/views';
+import { anchorFor, dimensionAxis, dimensionValue, rekeyDimensions, DIM_EPS } from '../document/placedDims';
 
 const HISTORY_LIMIT = 50;
+
+/** The ONE reader of `tapeNotice`: its text while the held points it was raised against are unchanged (`===`), and the axis
+ *  and typed text are equal (spec Amended (build) ruling 16: a notice never outlives the text it was raised against), else null. */
+export function shownTapeNotice(s: Pick<StoreState, 'tapeNotice' | 'tapeAnchor' | 'tapeHover' | 'tapeAxis' | 'tapeTyped'>): string | null {
+  const n = s.tapeNotice;
+  return n && s.tapeAnchor === n.anchor && s.tapeHover === n.hover && s.tapeAxis === n.axis && s.tapeTyped === n.typed ? n.text : null;
+}
+
+/** D's refusal while a typed distance is pending (placed-dimensions spec §3, final review): the preview shows the offset
+ *  point, so keeping the raw hover would keep a point the user is not looking at. */
+export const TAPE_TYPED_PENDING = 'Clear the typed distance to keep a dimension.';
+
+/**
+ * The D key (placed-dimensions spec §3): keep the Tape measurement as a placed dimension, or say why not through
+ * `setTapeNotice`. The ONE action behind both D handlers — App's window keydown and TapeReadout's focused-input twin
+ * (inv 27, 28: the window listener never sees a key typed in the box). False when D does not apply (not the Tape, no
+ * anchor or no hover), so the caller lets the key fall through; true when it was handled, kept or refused.
+ */
+export function keepTapeDimension(): boolean {
+  const { tool, tapeAnchor, tapeHover, tapeAxis, tapeTyped, addDimension, setTapeNotice } = useStore.getState();
+  if (tool !== 'tape' || !tapeAnchor || !tapeHover) return false;
+  if (tapeTyped.trim() !== '') {
+    setTapeNotice(TAPE_TYPED_PENDING);
+    return true;
+  }
+  const d = dimensionAxis(tapeAnchor.at, tapeHover.at, tapeAxis);
+  if ('refusal' in d) setTapeNotice(d.refusal);
+  else if (addDimension(tapeAnchor, tapeHover, d.axis)) setTapeNotice(null);
+  // A false from addDimension is a refusal the store decided itself (exploded, mid-gesture): the tool is unavailable there, no notice.
+  return true;
+}
 
 /** A row's tilt is within the loader's ONE bound (`withinTiltBound`); a square row always is. */
 const tiltWithin = (r: Pick<HoleRow, 'tiltAlong' | 'tiltAcross'>): boolean => withinTiltBound(r.tiltAlong ?? 0, r.tiltAcross ?? 0);
@@ -317,6 +349,20 @@ interface StoreState {
    */
   tapeAxis: TapeAxis | null;
   setTapeAxis: (axis: TapeAxis | null) => void;
+
+  /**
+   * One line of the Tape readout saying why D kept nothing (placed-dimensions spec §3). VIEW state, not a held point, so
+   * inv 24 is NOT engaged and no held-point writer mentions it. It is SELF-INVALIDATING: `setTapeNotice` captures the
+   * current `tapeAnchor`, `tapeHover` and `tapeAxis` objects and the `tapeTyped` text, and `shownTapeNotice` is the ONE reader,
+   * returning the text only while all four are unchanged (ruling 16: typing or clearing the box re-answers D, so the notice
+   * goes; no clear in `setTapeTyped`). `===`, stricter than `sameSnapPoint`: a hover re-set to an equal
+   * object hides the notice, which is acceptable (a fresh pointer move is a fresh pair). Read it only through that function.
+   */
+  tapeNotice: { text: string; anchor: SnapPoint | null; hover: SnapPoint | null; axis: TapeAxis | null; typed: string } | null;
+  setTapeNotice: (text: string | null) => void;
+  /** The placed dimension under the pointer (spec §7): view state, never in the document, undo or autosave. */
+  hoveredDimension: string | null;
+  setHoveredDimension: (id: string | null) => void;
 
   addBoard: () => void;
   /**
@@ -666,6 +712,14 @@ interface StoreState {
   addGuide: (at: [number, number, number]) => void;
   /** Add an infinite construction line through `at` along `axis` (construction-lines spec §3.3); false when refused (exploded) or already there. */
   addGuideLine: (line: NewLine) => boolean;
+  /**
+   * Keep a Tape measurement as a placed dimension along `axis` (spec §3, §5). False (no `edit()`, inv 4) when exploded, mid-gesture,
+   * level along `axis` (≤ `DIM_EPS`), or when a board-owned end's part is not in the tree. One undo entry; never touches the held
+   * points or the selection.
+   */
+  addDimension: (a: SnapPoint, b: SnapPoint, axis: TapeAxis) => boolean;
+  /** Remove a placed dimension: one undo entry; refused while exploded, a no-op for an unknown id. */
+  removeDimension: (id: string) => void;
   /** Saved views (spec §3): each is one undo entry, allowed while exploded (inv 47 carve-out), refused mid-gesture. */
   saveView: (camera: SavedViewCamera) => string | null;
   updateView: (id: string, camera: SavedViewCamera) => void;
@@ -1106,7 +1160,7 @@ export const useStore = create<StoreState>((set, get) => {
     const hiddenBefore = get().hiddenIds;
     rekeyHeld(rekey, lift);
     const pastBefore = get().past;
-    edit((d) => rekeyViews(fn(d), rekey, lift), selection); // views follow in the SAME entry (saved views spec §2)
+    edit((d) => rekeyDimensions(rekeyViews(fn(d), rekey, lift), rekey), selection); // dimensions' part ids and views follow in the SAME entry (saved views spec §2)
     const past = get().past;
     // A no-op edit pushes nothing (fu 231); rewriting the top then would clobber
     // an OLDER entry (perhaps a hide run's) or invent one on an empty history.
@@ -1418,6 +1472,8 @@ export const useStore = create<StoreState>((set, get) => {
     tapeHover: null,
     tapeTyped: '',
     tapeAxis: null,
+    tapeNotice: null,
+    hoveredDimension: null,
 
     // Changing tools always drops every held point — the two that can be
     // committed from (`grabbed`, `tapeAnchor`) and the tape's hover, which is
@@ -1448,6 +1504,11 @@ export const useStore = create<StoreState>((set, get) => {
     clearTapeAnchor: () => set({ tapeAnchor: null, tapeAxis: null }),
 
     setTapeHover: (point) => set({ tapeHover: point }),
+    setTapeNotice: (text) => {
+      const { tapeAnchor, tapeHover, tapeAxis, tapeTyped } = get();
+      set({ tapeNotice: text === null ? null : { text, anchor: tapeAnchor, hover: tapeHover, axis: tapeAxis, typed: tapeTyped } });
+    },
+    setHoveredDimension: (id) => set({ hoveredDimension: id }),
 
     setTapeTyped: (text) => set({ tapeTyped: text }),
 
@@ -1905,6 +1966,7 @@ export const useStore = create<StoreState>((set, get) => {
 
     ungroupSelected: () => {
       let doc = get().doc;
+      const { dimensions } = doc;
       const children: string[] = [];
       const kept: string[] = [];
       const steps: Array<{ rekey: Rekey; lift: Lift }> = [];
@@ -1913,14 +1975,16 @@ export const useStore = create<StoreState>((set, get) => {
         // A selected plain part stays selected where it was; the ungrouped
         // children follow it.
         if (!r) { kept.push(id); continue; }
-        doc = r.doc;
+        // The next step judges landing paths against the anchors where THIS step put them (ungroupItem's taken rule,
+        // inv 65); the entry itself re-keys the original anchors once, through the composed re-key below.
+        doc = rekeyDimensions(r.doc, r.rekey);
         children.push(...r.children);
         steps.push(r);
       }
       if (steps.length === 0) return;
       // Each step's paths are the previous step's output: compose in order.
       const through = (p: string) => steps.reduce<string[]>((ps, st) => ps.flatMap((q) => st.lift(q) ?? [st.rekey(q)]), [p]);
-      editRekeyed((p) => steps.reduce((q, st) => st.rekey(q), p), () => doc, () => [...kept, ...children], through);
+      editRekeyed((p) => steps.reduce((q, st) => st.rekey(q), p), () => ({ ...doc, dimensions }), () => [...kept, ...children], through);
     },
 
     turnAssembly: (path, rotation) => {
@@ -2106,6 +2170,8 @@ export const useStore = create<StoreState>((set, get) => {
         tapeAnchor: null,
         tapeHover: null,
         tapeAxis: null,
+        tapeNotice: null,
+        hoveredDimension: null,
         explode: 0,
         section: null,
         xray: false,
@@ -2868,6 +2934,26 @@ export const useStore = create<StoreState>((set, get) => {
     addGuide: (at) => {
       const guide = createGuide(at);
       edit((doc) => ({ ...doc, guides: [...doc.guides, guide] }));
+    },
+
+    // Placed dimensions spec §3, §5. Every refusal sits BEFORE edit() (inv 4). Touches neither the held points nor the selection.
+    addDimension: (a, b, axis) => {
+      if (readOnly() || get().gesturing) return false;
+      const parts = worldParts(get().doc);
+      const na = anchorFor(parts, a);
+      const nb = anchorFor(parts, b);
+      if (!na || !nb) return false;
+      const dim = { id: nextId(), a: na, b: nb, axis };
+      if (!((dimensionValue(parts, dim) ?? 0) > DIM_EPS)) return false;
+      edit((doc) => ({ ...doc, dimensions: [...doc.dimensions, dim] }));
+      return true;
+    },
+
+    removeDimension: (id) => {
+      if (readOnly()) return;
+      if (!get().doc.dimensions.some((d) => d.id === id)) return;
+      if (get().hoveredDimension === id) set({ hoveredDimension: null });
+      edit((doc) => ({ ...doc, dimensions: doc.dimensions.filter((d) => d.id !== id) }));
     },
 
     // Construction-lines spec §3.3: canonical (at[axis] = 0), so a duplicate is decided on the line itself. The

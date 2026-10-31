@@ -14,6 +14,7 @@ import { BoardMesh } from './BoardMesh';
 import { Gizmo } from './Gizmo';
 import { GuideMarkers } from './GuideMarkers';
 import { GuideLines } from './GuideLines';
+import { PlacedDims } from './PlacedDims';
 import { GuidePicker } from './GuidePicker';
 import { MoveTool } from './MoveTool';
 import { OriginAxes } from './OriginAxes';
@@ -632,6 +633,8 @@ export function Viewport({
       {/* `emphasise`: a guide's selected look is chrome, like a part's, so the capture's clean frame draws none. */}
       {showGuides && explode === 0 && <GuideMarkers emphasise={!clean} />}
       {showGuides && explode === 0 && <GuideLines emphasise={!clean} />}
+      {/* Placed dimensions (fu 253) do not follow the Guides toggle; exploded, their anchors would sit on unexploded parts. Not in Save image's clean frame: drei Html labels never reach toDataURL (follow-up). */}
+      {explode === 0 && !clean && <PlacedDims />}
       {/* The guide selection's click (selectable-guides spec §4): Select tool only, under the guides' own condition. */}
       {showGuides && explode === 0 && <GuidePicker enabled={tool === 'select'} />}
       <StretchGuide />
