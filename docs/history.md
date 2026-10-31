@@ -7639,3 +7639,37 @@ Critical or Important; posture × turn watertight cases added), and a browser ch
 print, one copy fix (the presets named metric hardware in rounded inches). Twelve build rulings (R1–R12) await approval; R11 (an edit that
 separates the bores is accepted silently) and R12 (the Cam lock on 1/2" stock) are questions for the user. Chunk 2, the joint across two
 parts, stays fu 568.
+
+## Snap-marker hues to the colour-blind floors (fu 590, 2026-10-30; deployed with the cam-and-bolt joint, `640d64c0`)
+
+The user had approved a retune "in principle". A checker written for it (`docs/snap-hues/`, which reproduces fu 249's and round 2's
+published figures to within 0.2) showed the shortfall was wider than recorded: round 1's line blues sat 10.7–12.7 from the guide under NORMAL
+vision as well as under simulated colour blindness. There was no small retune. With the other six hues fixed, only near-black navies and
+teals cleared the floors. With fu 249's four fixed, the newer four became three near-black dots and a crimson. Retuning all eight within
+their hue families cleared every floor only at a chroma near 85. Three sets went to the user as a simulated swatch page. They chose C, the
+vivid set: the guide, and so the tape, turned violet, and the stepped anchor dark maroon. They then confirmed it live on pine, walnut and
+plywood in the joint round's browser check. `snapColors.test.ts` now holds `SNAP_COLORS` to every floor (mutation-tested). fu 249's floors had
+never been guarded before.
+
+## Cam-and-bolt joint (fu 568 chunk 2, 2026-10-31, merge `64d30ea2`, no schema change; deployed `640d64c0`, `index-CWjTlx_U.js`)
+
+The user skipped the questions again, so the spec followed chunk 1's §11 outline and the Add stretcher pattern. Every call was marked as
+mine. The advisor caught two things before the plan:
+- B-bore reuse had to be judged by WORLD geometry, never `sameHoleRow`. A bore at a mirrored Shape user's exact middle stores its
+  `alongFrom` flag flipped.
+- The cam face needed a deliberate default, the underside of a flat shelf, or every housing would show on top.
+
+Six tasks ran subagent-driven with a review after each. Five fix rounds were needed:
+- Refusal 6 was narrowed so that a long-edge roundover no longer blocks a shelf (R4).
+- Several candidate joints now refuse as "none" instead of throwing (R8).
+- The planner's caller-bug throws are caught in the store and the panel (R14).
+- Two records tasks were fixed.
+
+The final whole-branch review found the two real defects:
+- A typed count on a narrow shelf gave a negative pitch, which the loader drops on reload. It now refuses (R17), and a round-trip guard
+  test covers every plan.
+- Sides linked by `linkByRole` as plain copies got their link-mate's bores on the OUTSIDE face. That now refuses (R18). This was the
+  carcass's most common setup, and the hand-built mirrored fixture (R12) had hidden it.
+
+The browser check in the user's Chrome passed 12/12, including fu 590's hues by eye. All eighteen rulings were approved 2026-10-31.
+Residue: fu 602–607 (Fit again, dowels, a B-bore recogniser, support in the checks, world end words, the minors).

@@ -220,7 +220,7 @@ their order; where `holesZoneRefusal` lands; whether the panel's plan is memoise
 
 ## Amended (build)
 
-Recorded by the build (Task 6, 2026-10-30). **Not yet approved by the user.** Rulings are from the SDD ledger
+Recorded by the build (Task 6, 2026-10-30). **Approved by the user 2026-10-31, all rulings R1–R18** ("approve all the rulings"). Rulings are from the SDD ledger
 (`.superpowers/sdd/2026-10-30-sloyd-cam-and-bolt-joint/progress.md`); each changes or settles text above.
 
 **Rulings**

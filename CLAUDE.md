@@ -39,7 +39,7 @@ What it does today is listed round by round in `docs/rounds.md`.
   with fu 590's snap hues; deployed 2026-10-31; earlier rounds: `docs/rounds.md`).
 - **Rollback:** the nearest refusing boundary is `fb1e133` (`index-zJyvpYf3.js`, schema 31): it refuses every project saved at 32 —
   export first. Every older boundary: the table in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-31):** owed: the list below (the joint spec's Amended R1–R18 among them). Then the feature-sized list, ask first.
+- **NEXT (2026-10-31):** owed: the list below. Then the feature-sized list, ask first.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.
@@ -575,7 +575,7 @@ This list is the triage's open set — when an entry's status changes, change it
   dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight); stretch 545–549 (ask first); glue-ups 556 (stored, schema 33 now; ask first), 557–563; cam-and-bolt 568 (chunk 2 deployed; residue 602–606), 598, 599, 600 (ask first), 602, 603, 605 (ask first); counterbores 569 (a head on a tilted row; ask first), 571 (AI authoring a head; ask first), 572 (a head at a through bore's exit), 573 (plugs as parts); construction lines 583, 584, 586–588 (ask first); selectable guides 592 (schema; ask first), 593, 594 (ask first).
 - **Owed to the user, not code:** by eye — counterbores (listed in its spec's *Amended (build)* block), 142, 272 (a phone),
   384(2), 393, 394 (`docs/rounds.md`); 465(2)–(4) (round tenons); 106 (touch/pen); 153 (a browser at quota); a real print — 357
-  (Brave, metric margin), 402(2); paid runs 172, 177. 336's grain seam waits for a texture/shader session. X-ray and Stretch (their `docs/browser-verification-*.md`), Saved views (`docs/rounds.md`), by eye. Selectable guides: Save image, A–D by eye (`docs/browser-verification-selectable-guides.md`). Cam-and-bolt: a close look at the window, a Plans print (`docs/browser-verification-cam-and-bolt.md`); chunk 1's spec Amended R1–R10 (R11, R12 built). Joint round: browser check 12/12 PASS 2026-10-31; joint spec Amended R1–R18 await approval.
+  (Brave, metric margin), 402(2); paid runs 172, 177. 336's grain seam waits for a texture/shader session. X-ray and Stretch (their `docs/browser-verification-*.md`), Saved views (`docs/rounds.md`), by eye. Selectable guides: Save image, A–D by eye (`docs/browser-verification-selectable-guides.md`). Cam-and-bolt: a close look at the window, a Plans print (`docs/browser-verification-cam-and-bolt.md`); chunk 1's spec Amended R1–R10 (R11, R12 built).
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain).
 - **Open by decision:** 585 (guide points stay delete-and-replace, fu 130), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only

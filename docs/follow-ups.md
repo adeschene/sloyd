@@ -8386,7 +8386,7 @@ browser check `docs/browser-verification-cam-and-bolt-joint.md`, pending). What 
 recogniser (fu 604), the joint as support (fu 605), world end words (fu 606); the build's minors are fu 607; hardware from a pair is fu 600.
 Final review fix wave (2026-10-30): a typed count of 2+ on an end no wider than 2 × 37 mm refuses (R17; it laid out a negative pitch the
 loader drops), and a bore reaching B's plain-linked copy onto a bare face refuses (R18); both in the spec's *Amended (build)* block.
-**Status:** chunk 2 browser-checked 2026-10-31: 12/12 PASS in the user's Chrome (`docs/browser-verification-cam-and-bolt-joint.md`); merged `64d30ea2`; DEPLOYED 2026-10-31 (`640d64c0`, `index-CWjTlx_U.js`). Residue: fu 602–607.
+**Status:** chunk 2 browser-checked 2026-10-31: 12/12 PASS in the user's Chrome (`docs/browser-verification-cam-and-bolt-joint.md`); merged `64d30ea2`; DEPLOYED 2026-10-31 (`640d64c0`, `index-CWjTlx_U.js`); the joint spec's Amended R1–R18 approved by the user 2026-10-31. Residue: fu 602–607.
 
 **569. A head on a TILTED row (pocket screws; feature-sized, ask first).** Adding a head to a tilted row and tilting a headed row are refused
 both ways (counterbores spec §3.3): a head there needs elliptical head rings, a stepped capsule for `meets-hole` and a tilted cone, so every
@@ -8643,8 +8643,8 @@ review may move both to world words (the Align words) together.
 **Status:** open (a ruling for the copy review; cost if wrong: one wording change in two places).
 
 **607. Cam-and-bolt joint: the build's deferred minors (the SDD ledger, by task).**
-- Task 1 (counts): the count-5 test recomputes the pitch with the implementation's formula (mutation-checked); no narrow-board explicit-count case;
-  the doc comment lacks "count is an integer >= 1".
+- Task 1 (counts): the count-5 test recomputes the pitch with the implementation's formula (mutation-checked); no narrow-board explicit-count case at the
+  preset itself (the planner refuses it, R17). (The doc comment's "count is an integer >= 1" was added in the final fix wave.)
 - Task 3 (planner): `plan.test`'s `boltAxes`/`pt` copy the implementation's axis derivation (independent cover exists); `expectJoined` judges B
   with default `camPairs` (the planner uses false, stricter); a dead `j<0` guard in `camFaceOptions`.
 - Task 4 (store): an all-writes-unchanged plan would still call `edit()` with an identity `mapWorld` (the planner refuses `CAM_JOINT_ALREADY`
@@ -8652,4 +8652,9 @@ review may move both to world words (the Align words) together.
 - Task 5 (panel): the memo signature misses `displayNames`, container mirroring and other Shape users (the click-time re-plan backstops it); a
   stale hidden count is passed under reuse (the planner ignores it); no exploded-state panel test; the cam-face wiring test is weak;
   `console.error` fires twice under StrictMode.
+- Task 6 (records): CLAUDE.md sits at about 60.1 KB, over its ~60 KB budget by a little.
+- Final review: the panel's memo can show a stale state when a THIRD part changes while the same pair stays selected (R18 reads other parts;
+  the store re-plans at click time, so nothing wrong is written); a linked shelf's note says it "got these bores too" when it got the cam rows
+  (browser check 9; a word for the copy review with fu 606); the two new sentences (`CAM_JOINT_NARROW`, `CAM_JOINT_BARE_FACE`) are the build's
+  wording, for the same review.
 **Status:** open (record-only).
