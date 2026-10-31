@@ -3,8 +3,8 @@
 Researched 2026-10-11 against SketchUp and its woodworking extensions (OpenCutList,
 CutList Bridge, CabinetSense, Fredo Round Corner, the rake-and-splay tool), Fusion 360,
 Shapr3D, SketchList 3D, CutList Plus fx and Mozaik. Each gap was checked against the code
-and `docs/follow-ups.md` before being listed. Statuses last brought up to date 2026-10-30
-(production `9c3b57b`, schema 32: construction lines round 2 deployed, fu 578–582 — every gap below is shipped); `docs/follow-ups.md` wins on any follow-up's status.
+and `docs/follow-ups.md` before being listed. Statuses last brought up to date 2026-10-31
+(production `4635ae34`, schema 32: the cam-and-bolt joint and its Fit again deployed — every gap below is shipped; what is left is residue in `docs/follow-ups.md`); `docs/follow-ups.md` wins on any follow-up's status.
 
 **This is a candidate list, not a roadmap.** Nothing here is chosen until the user picks it.
 Excluded on purpose: CSV/clipboard export and name run-collapsing (`Leg 1..4`), both

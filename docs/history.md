@@ -7673,3 +7673,41 @@ The final whole-branch review found the two real defects:
 
 The browser check in the user's Chrome passed 12/12, including fu 590's hues by eye. All eighteen rulings were approved 2026-10-31.
 Residue: fu 602–607 (Fit again, dowels, a B-bore recogniser, support in the checks, world end words, the minors).
+
+## Fit the cam-and-bolt joint again (fu 602, 2026-10-31, merge `26103915`, no schema change; deployed `4635ae34`, `index-SdbOfA5n.js`)
+
+After Add joint, moving the shelf (or the side) left the side's bores where they were. Nothing said so, and Add joint again bored a second
+set beside the first. The user picked this from the residue and skipped the questions, so every call in the spec was marked as mine and
+approved afterwards (Amended R1–R10).
+
+The design stays inside the ONE planner. Nothing about the joint is stored, so the old bores are recognised by shape:
+- **Loose bores** are single, square, headless 5 × 12 mm bores on the side's face toward the shelf that line up with no cam bolt on ANY
+  part, judged on every carrier of the side's holes (its link and definition co-users).
+- **The fit** adopts the loose bores that are the missing ones shifted by one common offset, the NEAREST such set. A tie refuses
+  (`CAM_JOINT_TWO_FITS`). The rows are replaced in place, so ids and order are kept.
+- **What shows:** the section's button reads `Fit the joint again`, and the shelf's own panel notes a joint that no longer lines up
+  (`camJointStaleFits`, `CamJointReadout`).
+
+The advisor's review before the spec changed two things:
+- "Only when unique" became "nearest, ties refused". A side carrying three identically jointed shelves, then moved, would otherwise
+  refuse every fit, because each shelf's pair is a shift of every other's.
+- The trial list REPLACES a moved row and never appends it. Otherwise a move under 5 mm faults (`meets-hole`) against the bore being
+  moved.
+
+The store needed no change: `newRows` already compares by value, and `judgeHeld` already runs after the write.
+
+Five tasks ran subagent-driven with a review after each. Two fix rounds were needed:
+- On a tie the section now hides Cam face and Fittings, as on a fit (R6).
+- The shelf's readout memos on the document reference, not a whole-document JSON string serialised on every store update (R7).
+- Two follow-up numbers were mis-bucketed in CLAUDE.md.
+
+One plan-supplied test could not fail as written. `boreAlongAxis` tests against an infinite line, and a mirror across X keeps y and z, so
+the co-user case passed even with the carrier rule removed. The fixture's right side was raised 1/4" so the mutation goes red (R2).
+
+The final whole-branch review found no defects. It raised two behaviours the spec left open, which the user approved as built (R9, R10;
+remedies fu 613, 614, ask first):
+- A fit refused for another reason loses its stale signal.
+- With one fitting, any stray bore on that face can be adopted.
+
+The browser check in the user's Chrome passed 11/11. It used mirrored-linked sides, a move by the Y field, the fit through the link, a
+front section through a bore, one-step undo and redo, and the tie refusal. Residue: fu 608–614.
